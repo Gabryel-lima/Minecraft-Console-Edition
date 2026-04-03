@@ -1,0 +1,66 @@
+name: Build (Linux, x86-64)
+
+on:
+  push:
+    paths: &workflow_paths
+      - '**.cpp'
+      - '**.h'
+      - '**.c'
+      - '**.cc'
+      - '**.cxx'
+      - '**.hh'
+      - '**.hpp'
+      - '**.hxx'
+      - '**.inl'
+      - "**meson.build"
+      - "flake.nix"
+      - '.github/workflows/build-linux.yml'
+
+  pull_request:
+    paths: *workflow_paths
+
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential ccache python3 python3-pip ninja-build libsdl2-dev libgl-dev libglu1-mesa-dev libpthread-stubs0-dev libglm-dev
+          python -m pip install meson
+
+      - name: Restore ccache
+        uses: actions/cache@v5
+        with:
+          path: ${{ runner.temp }}/ccache
+          key: ${{ runner.os }}-ccache-${{ hashFiles('**/meson.build') }}
+          restore-keys: ${{ runner.os }}-ccache-
+
+      - name: Configure Meson
+        env:
+          CC: "ccache clang"
+          CXX: "ccache clang++"
+          CC_LD: lld
+          CXX_LD: lld
+        run: |
+          meson setup build --wipe
+
+      - name: Build with Meson
+        env:
+          CCACHE_DIR: ${{ runner.temp }}/ccache
+        run: |
+          # Use all available cores for faster parallel builds
+          meson compile -C build -j $(nproc) -v Minecraft.Client
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: minecraft-client-linux-${{ github.sha }}
+          path: build/Minecraft.Client/Minecraft.Client
+          retention-days: 7
