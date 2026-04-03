@@ -1,0 +1,29 @@
+# Exclude everything by default
+/*
+
+# Except for tracked top-level project directories
+!/.devcontainer/
+!/.github/
+!/.github-assets/
+!/docs/
+!/Minecraft.Assets/
+!/Minecraft.Client/
+!/Minecraft.World/
+!/4J.*/
+!/scripts/
+!/subprojects/
+/subprojects/*
+!/subprojects/*.wrap
+!/subprojects/packagefiles
+/scripts/__pycache__/
+!/.clang-format
+!/.git-blame-ignore-revs
+!/.gitattributes
+!/.gitignore
+!/.gitmodules
+!/CONTRIBUTING.md
+!/flake.lock
+!/flake.nix
+!/meson.build
+!/meson.options
+!/README.md

@@ -1,0 +1,159 @@
+{
+  "nodes": {
+    "4jlibs": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1774836469,
+        "narHash": "sha256-ukp6tLThQugPlREYFDDB6IaunjGte08f0Ler/c8cvaY=",
+        "owner": "4jcraft",
+        "repo": "4jlibs",
+        "rev": "ab37891dabba90cf1e568660f750cebf46ba83f6",
+        "type": "github"
+      },
+      "original": {
+        "owner": "4jcraft",
+        "ref": "main",
+        "repo": "4jlibs",
+        "type": "github"
+      }
+    },
+    "flake-utils": {
+      "inputs": {
+        "systems": "systems"
+      },
+      "locked": {
+        "lastModified": 1731533236,
+        "narHash": "sha256-l0KFg5HjrsfsO/JpG+r7fRrqm12kzFHyUHqHCVpMMbI=",
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "rev": "11707dc2f618dd54ca8739b309ec4fc024de578b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "type": "github"
+      }
+    },
+    "miniaudio": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1740378702,
+        "narHash": "sha256-o/7sfBcrhyXEakccOAogQqm8dO4Szj1QSpaIHg6OSt4=",
+        "type": "tarball",
+        "url": "https://github.com/mackron/miniaudio/archive/refs/tags/0.11.22.tar.gz"
+      },
+      "original": {
+        "type": "tarball",
+        "url": "https://github.com/mackron/miniaudio/archive/refs/tags/0.11.22.tar.gz"
+      }
+    },
+    "miniaudio-patch": {
+      "flake": false,
+      "locked": {
+        "narHash": "sha256-txCgaQ2r4134YVNJjw0oVG9yGGLxGvdLfXnB1j+DI/4=",
+        "type": "file",
+        "url": "https://wrapdb.mesonbuild.com/v2/miniaudio_0.11.22-2/get_patch"
+      },
+      "original": {
+        "type": "file",
+        "url": "https://wrapdb.mesonbuild.com/v2/miniaudio_0.11.22-2/get_patch"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1774386573,
+        "narHash": "sha256-4hAV26quOxdC6iyG7kYaZcM3VOskcPUrdCQd/nx8obc=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "46db2e09e1d3f113a13c0d7b81e2f221c63b8ce9",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "4jlibs": "4jlibs",
+        "flake-utils": "flake-utils",
+        "miniaudio": "miniaudio",
+        "miniaudio-patch": "miniaudio-patch",
+        "nixpkgs": "nixpkgs",
+        "shiggy": "shiggy",
+        "simdutf": "simdutf",
+        "stb": "stb"
+      }
+    },
+    "shiggy": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1773545684,
+        "narHash": "sha256-NI2qw4nROLciRgVZW1CM68vLQbeLmQeqdZ/QxufL6d4=",
+        "owner": "4jcraft",
+        "repo": "shiggy",
+        "rev": "7adc6c47882409c31e4f2d66fbfabdf4a3a98fd1",
+        "type": "github"
+      },
+      "original": {
+        "owner": "4jcraft",
+        "ref": "main",
+        "repo": "shiggy",
+        "type": "github"
+      }
+    },
+    "simdutf": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1773677002,
+        "narHash": "sha256-kq53Jz9zm2bfs8x/74FQbzYrUc+VD7JlnBoYHnEHuSY=",
+        "owner": "simdutf",
+        "repo": "simdutf",
+        "rev": "04a9b596de943ea9e4d4c833e39740edf3c11e88",
+        "type": "github"
+      },
+      "original": {
+        "owner": "simdutf",
+        "repo": "simdutf",
+        "type": "github"
+      }
+    },
+    "stb": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1773836560,
+        "narHash": "sha256-bRXN5YdVuSi9gzWn7UbCY+v6OSQdfWaUwrP1WWKrbks=",
+        "owner": "nothings",
+        "repo": "stb",
+        "rev": "28d546d5eb77d4585506a20480f4de2e706dff4c",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nothings",
+        "ref": "master",
+        "repo": "stb",
+        "type": "github"
+      }
+    },
+    "systems": {
+      "locked": {
+        "lastModified": 1681028828,
+        "narHash": "sha256-Vy1rq5AaRuLzOxct8nz4T6wlgyUR7zLU309k9mBC768=",
+        "owner": "nix-systems",
+        "repo": "default",
+        "rev": "da67096a3b9bf56a91d16901293e51ba5b49a27e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-systems",
+        "repo": "default",
+        "type": "github"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}

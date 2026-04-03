@@ -1,0 +1,44 @@
+# Meson / Ninja build trees
+build/
+**/build/
+**/meson-info/
+**/meson-logs/
+**/meson-private/
+**/compile_commands.json
+**/.ninja_deps
+**/.ninja_log
+
+# Meson wrap cache
+**/subprojects/packagecache/
+
+# Local packaging / build outputs
+4jcraft/Minecraft.Assets/DurangoMedia/Layout/Image/Loose/
+4jcraft/Minecraft.Assets/x64/Debug/
+4jcraft/Minecraft.Assets/x64/Release/
+minecraft-lce-december/Minecraft.Client/PSVita/4JLibs/libs/
+shiggy/libs/
+
+# Python bytecode and caches from helper scripts
+**/__pycache__/
+**/*.py[cod]
+
+# Visual Studio / MSBuild user state
+**/.vs/
+**/*.user
+**/*.VC.db
+**/*.VC.opendb
+**/*.suo
+**/*.ipdb
+**/*.iobj
+**/*.idb
+**/*.ilk
+**/*.pdb
+**/*.tlog
+**/*.lastbuildstate
+
+# OS/editor noise
+**/.DS_Store
+**/Thumbs.db
+**/*~
+**/*.orig
+**/*.rej
