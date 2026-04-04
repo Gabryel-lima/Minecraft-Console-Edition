@@ -13,6 +13,7 @@ Este README documenta o fluxo de desenvolvimento atualmente verificado no Linux:
 
 > 🚀 Build verificado no Linux.
 > 🎮 Renderer recomendado: `gles`.
+> 🛡️ `ui_backend=shiggy` faz fallback automático para `java` em CPUs Linux sem AVX.
 > 📦 O build local copia `Common/`, `music/` e `Sound/` para `build/Minecraft.Client/`.
 
 </div>
@@ -113,7 +114,7 @@ Se você estiver usando Nix, `nix build` já produz um pacote com wrapper em `re
 As opções disponíveis hoje são estas:
 
 - `renderer=gl3|gles` - escolhe o backend de renderização.
-- `ui_backend=shiggy|java` - escolhe a implementação da UI.
+- `ui_backend=shiggy|java` - escolhe a implementação da UI. Em Linux, `shiggy` usa fallback para `java` quando a CPU não anuncia AVX.
 - `classic_panorama=true|false` - habilita o panorama clássico, somente com `ui_backend=java`.
 - `enable_vsync=true|false` - controla V-Sync.
 - `enable_frame_profiler=true|false` - habilita o profiler de frame.
@@ -132,5 +133,6 @@ Antes de enviar mudanças, siga o padrão dos módulos, preserve os comentários
 ## 🧯 Problemas comuns
 
 - Se a configuração falhar por causa de GLU, use `-Drenderer=gles` ou instale as dependências de GLU para o backend `gl3`.
+- Se uma máquina Linux antiga não suportar AVX, mantenha `ui_backend=shiggy` ou deixe o padrão: o build agora troca automaticamente para `java` e evita o crash de instrução ilegal.
 - Se o jogo iniciar mas não encontrar assets, execute a partir de `build/Minecraft.Client` ou use a instalação empacotada.
 - Se você quiser reproduzir o ambiente de CI, consulte os workflows em [.github/workflows/build-linux.yml](.github/workflows/build-linux.yml) e [.github/workflows/release-linux.yml](.github/workflows/release-linux.yml).

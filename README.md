@@ -20,7 +20,7 @@ Repositório raiz do workspace para a reconstrução de Minecraft: Console Editi
 ## 🚀 Começo rápido
 
 1. Leia [4jcraft/README.md](4jcraft/README.md).
-2. No Linux, siga o caminho documentado ali com `renderer=gles` se quiser o build verificado.
+2. No Linux, siga o caminho documentado ali com `renderer=gles` se quiser o build verificado. O backend `ui_backend=shiggy` agora cai automaticamente para `java` em CPUs sem AVX.
 3. Para preparar o ambiente Python de apoio, rode `python3 -m pip install -r requirements.txt`.
 
 ## 🧭 Observações
