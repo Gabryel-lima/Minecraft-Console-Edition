@@ -7,6 +7,13 @@
 #include "../../Minecraft.World/IO/Streams/FloatBuffer.h"
 #include "../../Minecraft.World/IO/Streams/ByteBuffer.h"
 
+#undef glEndList
+#undef glCallLists
+#undef glColorPointer
+#undef glNormalPointer
+#undef glTexCoordPointer
+#undef glVertexPointer
+
 extern C4JRender RenderManager;
 
 #ifdef GLES

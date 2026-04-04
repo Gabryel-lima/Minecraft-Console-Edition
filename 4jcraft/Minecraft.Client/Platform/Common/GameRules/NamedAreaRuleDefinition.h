@@ -1,7 +1,7 @@
 #pragma once
 
 #include "GameRuleDefinition.h"
-#include "../../Minecraft.World/Util/AABB.h"
+#include "../../../../Minecraft.World/Util/AABB.h"
 
 class NamedAreaRuleDefinition : public GameRuleDefinition {
 private:

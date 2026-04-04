@@ -8,7 +8,7 @@
 #include "ApplySchematicRuleDefinition.h"
 #include "LevelGenerationOptions.h"
 #include "ConsoleSchematicFile.h"
-#include "../../Minecraft.World/Util/AABB.h"
+#include "../../../../Minecraft.World/Util/AABB.h"
 
 ApplySchematicRuleDefinition::ApplySchematicRuleDefinition(
     LevelGenerationOptions* levelGenOptions) {

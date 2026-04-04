@@ -2,7 +2,6 @@
 
 #ifdef __linux__
 #include <GL/gl.h>
-#include <GL/glu.h>
 
 #undef GL_SMOOTH
 #undef GL_FLAT

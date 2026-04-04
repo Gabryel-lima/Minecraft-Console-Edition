@@ -13,18 +13,18 @@
 
 #include "UI/UIStructs.h"
 
-#include "../Minecraft.World/Network/Packets/DisconnectPacket.h"
+#include "../../../Minecraft.World/Network/Packets/DisconnectPacket.h"
 #if !defined(__linux__)
 #include <xsocialpost.h>
 #endif
 
-#include "../Minecraft.Client/Utils/StringTable.h"
+#include "../../Utils/StringTable.h"
 #include "DLC/DLCManager.h"
 #include "GameRules/ConsoleGameRulesConstants.h"
 #include "GameRules/GameRuleManager.h"
-#include "../Minecraft.Client/Rendering/Models/SkinBox.h"
-#include "../Minecraft.Client/Utils/ArchiveFile.h"
-#include "../Minecraft.World/Entities/MinecartHopper.h"
+#include "../../Rendering/Models/SkinBox.h"
+#include "../../Utils/ArchiveFile.h"
+#include "../../../Minecraft.World/Entities/MinecartHopper.h"
 
 typedef struct _JoinFromInviteData {
     std::uint32_t dwUserIndex;       // dwUserIndex

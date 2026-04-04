@@ -60,17 +60,10 @@ using namespace DirectX;
 #include "../../Minecraft.World/IO/Streams/Compression.h"
 #include "../../Minecraft.World/Util/PerformanceTimer.h"
 
-#ifdef _WINDOWS64
-#include "../Platform/Windows64/4JLibs/inc/4J_Input.h"
-#include "../Platform/Windows64/4JLibs/inc/4J_Profile.h"
-#include "../Platform/Windows64/4JLibs/inc/4J_Render.h"
-#include "../Platform/Windows64/4JLibs/inc/4J_Storage.h"
-#else
-#include "4J_Input.h"
-#include "4J_Profile.h"
-#include "4J_Render.h"
-#include "4J_Storage.h"
-#endif
+#include "../../4J.Input/4J_Input.h"
+#include "../../4J.Profile/4J_Profile.h"
+#include "../../4J.Render/4J_Render.h"
+#include "../../4J.Storage/4J_Storage.h"
 
 #include "../Textures/Textures.h"
 #include "../UI/Font.h"

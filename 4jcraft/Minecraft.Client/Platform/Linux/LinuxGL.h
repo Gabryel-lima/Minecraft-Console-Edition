@@ -3,7 +3,6 @@
 #ifdef __linux__
 
 #include <GL/gl.h>
-#include <GL/glu.h>
 
 class FloatBuffer;
 class IntBuffer;

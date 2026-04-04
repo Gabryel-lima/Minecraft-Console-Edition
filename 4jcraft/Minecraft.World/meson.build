@@ -30,9 +30,25 @@ simdutf_dep = dependency('simdutf',
   default_options: ['utf8=true', 'utf16=true', 'utf32=true']
 )
 
+world_include_dirs = include_directories(
+  'Platform',
+  'Platform/x64headers',
+  'Headers',
+  'Util',
+  'Level',
+  'Entities',
+  'IO',
+  'Network',
+  'Blocks',
+  'WorldGen',
+  'Scores',
+  'Stats',
+  'Commands',
+)
+
 lib_world = static_library('Minecraft.World',
   world_sources,
-  include_directories : include_directories('Platform', 'Platform/x64headers'),
+  include_directories : world_include_dirs,
   dependencies : [
     assets_localisation_dep,
     render_dep,
@@ -52,5 +68,5 @@ crypto_dep = dependency('libcrypto')  # for MD5 in Hasher.cpp on Linux
 world_dep = declare_dependency(
   link_with : lib_world,
   dependencies : [crypto_dep, zlib_dep],
-  include_directories : include_directories('Platform/x64headers'),
+  include_directories : world_include_dirs,
 )

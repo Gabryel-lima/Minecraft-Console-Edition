@@ -1,12 +1,12 @@
 #pragma once
 
-#include "../../Minecraft.World/Util/SoundTypes.h"
+#include "../../../../Minecraft.World/Util/SoundTypes.h"
 
 #ifdef _WINDOWS64
-#include "../../windows64/Miles/include/mss.h"
+#include "../../Windows64/Miles/include/mss.h"
 #else
 // Linux currently uses the Windows64 Miles headers as the compatible host SDK.
-#include "../../Minecraft.Client/Platform/Windows64/Miles/include/mss.h"
+#include "../../Windows64/Miles/include/mss.h"
 #endif
 
 typedef struct {

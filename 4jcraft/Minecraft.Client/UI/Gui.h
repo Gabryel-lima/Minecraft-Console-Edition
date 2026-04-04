@@ -2,7 +2,7 @@
 #include <cstddef>
 #include "GuiComponent.h"
 #include "GuiMessage.h"
-#include "../../../Minecraft.Client/Rendering/EntityRenderers/ItemRenderer.h"
+#include "../Rendering/EntityRenderers/ItemRenderer.h"
 class Random;
 class Minecraft;
 

@@ -6,7 +6,7 @@
 #include "../../Minecraft.World/Headers/net.minecraft.world.item.h"
 #include "../../Minecraft.World/Headers/net.minecraft.world.inventory.h"
 #include "../../Minecraft.World/Headers/net.minecraft.world.level.h"
-#include "../../Minecraft.World/Headers/net.minecraft.world.level.tile.h"
+#include "../../Minecraft.World/Headers/net.minecraft.world.level.tile.h
 
 CreativeMode::CreativeMode(Minecraft* minecraft) : GameMode(minecraft) {
     destroyDelay = 0;

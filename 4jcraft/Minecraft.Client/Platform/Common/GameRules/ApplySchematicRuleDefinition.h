@@ -2,7 +2,7 @@
 #include <optional>
 #include "GameRuleDefinition.h"
 #include "ConsoleSchematicFile.h"
-#include "../../Minecraft.World/Util/AABB.h"
+#include "../../../../Minecraft.World/Util/AABB.h"
 
 class AABB;
 class Vec3;

@@ -1,0 +1,2 @@
+# Python build tooling for the workspace
+meson>=1.7
