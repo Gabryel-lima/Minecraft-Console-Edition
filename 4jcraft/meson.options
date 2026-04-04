@@ -3,7 +3,7 @@ option(
   type: 'combo',
   choices: ['shiggy', 'java'],
   value: 'shiggy',
-  description: 'Specifies a backend implementation for the game UI.',
+  description: 'Specifies a backend implementation for the game UI. shiggy falls back to java on Linux CPUs without AVX.',
 )
 
 option('classic_panorama',

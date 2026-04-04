@@ -98,7 +98,25 @@ if get_option('enable_frame_profiler')
   global_cpp_defs += ['-DENABLE_FRAME_PROFILER']
 endif
 
-if get_option('ui_backend') == 'shiggy'
+ui_backend = get_option('ui_backend')
+resolved_ui_backend = ui_backend
+
+# `shiggy` contains AVX-heavy code; fall back to the Java GUI backend on
+# Linux hosts that do not advertise AVX support.
+if ui_backend == 'shiggy' and host_machine.system() == 'linux'
+  has_avx = run_command(
+    'sh',
+    '-c', 'grep -m1 "^flags" /proc/cpuinfo | grep -qw avx',
+    check: false,
+  ).returncode() == 0
+
+  if not has_avx
+    message('AVX not detected; falling back to the Java UI backend.')
+    resolved_ui_backend = 'java'
+  endif
+endif
+
+if resolved_ui_backend == 'shiggy'
   shiggy_dep = dependency(
     'shiggy',
     fallback: ['shiggy', 'shiggy_dep'],
@@ -108,7 +126,7 @@ if get_option('ui_backend') == 'shiggy'
   client_dependencies += shiggy_dep
 endif
 
-if get_option('ui_backend') == 'java'
+if resolved_ui_backend == 'java'
   global_cpp_defs += '-DENABLE_JAVA_GUIS'
 endif
 
