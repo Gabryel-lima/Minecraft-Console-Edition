@@ -35,8 +35,10 @@ shutil.copytree(
     dest_common,
 )
 
-# copy the media archive to `Common/Media` inside the folder we just copied.
-shutil.copy(media_archive, client_build_dir / "Common" / "Media")
+# copy the media archive to `Common/Media/MediaLinux.arc` inside the folder we just copied.
+dest_media = dest_common / "Media"
+dest_media.mkdir(parents=True, exist_ok=True)
+shutil.copy(media_archive, dest_media / media_archive.name)
 
 # copy music and Sound
 shutil.copytree(

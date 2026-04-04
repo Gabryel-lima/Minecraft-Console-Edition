@@ -70,6 +70,22 @@ client_dependencies = [
   stb_dep,
 ]
 
+assets_copy = custom_target(
+  'copy_assets_to_client',
+  input: media_archive,
+  output: 'assets.stamp', # using a stamp file to avoid copying assets every time
+  command: [
+    python,
+    meson.project_source_root() / 'scripts/copy_assets_to_client.py',
+    meson.project_source_root(),
+    meson.project_build_root(),
+    meson.current_build_dir(),
+    '@INPUT0@',
+    '@OUTPUT@',
+  ],
+  build_by_default: true,
+)
+
 if get_option('enable_vsync')
   global_cpp_defs += ['-DENABLE_VSYNC']
 endif
@@ -111,6 +127,7 @@ client = executable(
   client_sources + platform_sources + localisation[1],
   include_directories: include_directories('Platform', 'Platform/Linux/Iggy/include'),
   dependencies: client_dependencies,
+  link_depends: assets_copy,
   cpp_args: global_cpp_args
   + global_cpp_defs
   + [
@@ -121,23 +138,4 @@ client = executable(
   c_args: global_cpp_defs + ['-DUNICODE', '-D_UNICODE'],
   install: true,
   install_dir: '',
-)
-
-# To support actually running the client from the build folder, we need to
-# copy the generated assets from Minecraft.Assets into the working directory
-# of the client.
-custom_target(
-  'copy_assets_to_client',
-  input: [client, media_archive],
-  output: 'assets.stamp', # using a stamp file to avoid copying assets every time
-  command: [
-    python,
-    meson.project_source_root() / 'scripts/copy_assets_to_client.py',
-    meson.project_source_root(),
-    meson.project_build_root(),
-    meson.current_build_dir(),
-    '@INPUT1@',
-    '@OUTPUT@',
-  ],
-  build_by_default: true,
 )
