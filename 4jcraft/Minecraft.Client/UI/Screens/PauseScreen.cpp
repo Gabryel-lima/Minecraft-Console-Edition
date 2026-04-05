@@ -21,32 +21,28 @@ PauseScreen::PauseScreen() {
 void PauseScreen::init() {
     saveStep = 0;
     buttons.clear();
-    int yo = -16;
+    const int buttonX = width / 2 - 100;
+    const int menuTop = height / 2 - 48;
     // 4jcraft: solves the issue of client-side only pausing in the java gui
     if (g_NetworkManager.IsLocalGame() &&
         g_NetworkManager.GetPlayerCount() == 1)
         app.SetXuiServerAction(ProfileManager.GetPrimaryPad(),
                                eXuiServerAction_PauseServer, (void*)true);
-    buttons.push_back(new Button(1, width / 2 - 100, height / 4 + 24 * 5 + yo,
-                                 I18n::get(L"menu.returnToMenu")));
-    if (!g_NetworkManager.IsHost()) {
-        buttons[0]->msg = I18n::get(L"menu.disconnect");
-    }
-
-    buttons.push_back(new Button(4, width / 2 - 100, height / 4 + 24 * 1 + yo,
-                                 L"LBack to game"));
-    buttons.push_back(new Button(0, width / 2 - 100, height / 4 + 24 * 4 + yo,
-                                 L"LOptions..."));
-
-    buttons.push_back(new Button(4, width / 2 - 100, height / 4 + 24 * 1 + yo,
+    buttons.push_back(new Button(4, buttonX, menuTop,
                                  I18n::get(L"menu.returnToGame")));
-    buttons.push_back(new Button(0, width / 2 - 100, height / 4 + 24 * 4 + yo,
+    buttons.push_back(new Button(0, buttonX, menuTop + 24,
                                  I18n::get(L"menu.options")));
+    buttons.push_back(new Button(5, buttonX, menuTop + 48, 98, 20,
+                                 I18n::get(L"gui.achievements")));
+    buttons.push_back(new Button(6, buttonX + 102, menuTop + 48, 98, 20,
+                                 I18n::get(L"gui.stats")));
 
-    buttons.push_back(new Button(5, width / 2 - 100, height / 4 + 24 * 2 + yo,
-                                 98, 20, I18n::get(L"gui.achievements")));
-    buttons.push_back(new Button(6, width / 2 + 2, height / 4 + 24 * 2 + yo, 98,
-                                 20, I18n::get(L"gui.stats")));
+    Button* returnToMenuButton =
+        new Button(1, buttonX, menuTop + 72, I18n::get(L"menu.returnToMenu"));
+    if (!g_NetworkManager.IsHost()) {
+        returnToMenuButton->msg = I18n::get(L"menu.disconnect");
+    }
+    buttons.push_back(returnToMenuButton);
     /*
      * if (minecraft->serverConnection!=null) { buttons.get(1).active =
      * false; buttons.get(2).active = false; buttons.get(3).active = false;
@@ -105,6 +101,7 @@ void PauseScreen::tick() {
 }
 
 void PauseScreen::render(int xm, int ym, float a) {
+    const int menuTop = height / 2 - 48;
     renderBackground();
 
     bool isSaving = false;  //! minecraft->level->pauseSave(saveStep++);
@@ -113,11 +110,11 @@ void PauseScreen::render(int xm, int ym, float a) {
         col = Mth::sin(col * PI * 2) * 0.2f + 0.8f;
         int br = (int)(255 * col);
 
-        drawString(font, L"Saving level..", 8, height - 16,
-                   br << 16 | br << 8 | br);
+        drawCenteredString(font, L"Saving level..", width / 2, height - 16,
+                           br << 16 | br << 8 | br);
     }
 
-    drawCenteredString(font, L"Game menu", width / 2, 40, 0xffffff);
+    drawCenteredString(font, L"Game menu", width / 2, menuTop - 32, 0xffffff);
 
     Screen::render(xm, ym, a);
 }
