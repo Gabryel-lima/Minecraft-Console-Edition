@@ -4,7 +4,13 @@
 #define XBOX_SCHEMATIC_ORIGINAL_VERSION 1
 #define XBOX_SCHEMATIC_CURRENT_VERSION 2
 
-#include "../../Minecraft.World/Util/ArrayWithLength.h"
+#include <vector>
+#include <memory>
+#include <utility>
+#include <mutex>
+
+#include "../../../../Minecraft.World/Util/ArrayWithLength.h"
+#include "../../../../Minecraft.World/IO/Streams/Compression.h"
 
 class Level;
 class DataOutputStream;
@@ -55,6 +61,7 @@ private:
     int m_xSize, m_ySize, m_zSize;
     std::vector<std::shared_ptr<TileEntity> > m_tileEntities;
     std::vector<std::pair<Vec3, CompoundTag*> > m_entities;
+    std::mutex m_mutex;
 
 public:
     byteArray m_data;

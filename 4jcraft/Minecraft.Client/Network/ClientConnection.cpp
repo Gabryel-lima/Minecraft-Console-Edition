@@ -46,7 +46,7 @@
 #include "../ClientConstants.h"
 #include "../../Minecraft.World/Util/SoundTypes.h"
 #include "../Textures/Packs/TexturePackRepository.h"
-#include "UI/Screens/MerchantScreen.h"
+#include "../UI/Screens/MerchantScreen.h"
 #include "../Platform/Common/UI/UI.h"
 #include "../Textures/Packs/DLCTexturePack.h"
 

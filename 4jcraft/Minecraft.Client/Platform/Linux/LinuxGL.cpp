@@ -1,11 +1,11 @@
 #ifdef __linux__
 
 #include "../stdafx.h"
-#include "4J_Render.h"
+#include "../../../4J.Render/4J_Render.h"
 
-#include "../../Minecraft.World/IO/Streams/IntBuffer.h"
-#include "../../Minecraft.World/IO/Streams/FloatBuffer.h"
-#include "../../Minecraft.World/IO/Streams/ByteBuffer.h"
+#include "../../../Minecraft.World/IO/Streams/IntBuffer.h"
+#include "../../../Minecraft.World/IO/Streams/FloatBuffer.h"
+#include "../../../Minecraft.World/IO/Streams/ByteBuffer.h"
 
 #undef glEndList
 #undef glCallLists

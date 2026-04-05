@@ -1,4 +1,4 @@
-#include "Rendering/Vertex.h"
+#include "Vertex.h"
 #include "Polygon.h"
 #include <algorithm>
 #include <span>

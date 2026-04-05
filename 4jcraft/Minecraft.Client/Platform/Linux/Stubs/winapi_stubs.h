@@ -6,6 +6,14 @@
 #include <cassert>
 #include <cstdarg>
 #include <sys/mman.h>
+#include <unistd.h>
+#include <cstring>
+#include <fcntl.h>
+#include <iostream>
+#include <chrono>
+#include <sys/stat.h>
+#include <dirent.h>
+#include <fnmatch.h>
 
 #define TRUE true
 #define FALSE false
@@ -530,7 +538,7 @@ static inline HANDLE FindFirstFileA(const char* lpFileName,
     strncpy(fh->pattern, pattern, MAX_PATH - 1);
 
     struct dirent* ent;
-    while ((ent = readdir(fh->dir)) != nullptr) {
+    while ((ent = readdir((DIR *)fh->dir)) != nullptr) {
         if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
             continue;
         if (fnmatch(fh->pattern, ent->d_name, 0) == 0) {

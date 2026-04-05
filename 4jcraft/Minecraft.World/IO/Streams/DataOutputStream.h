@@ -2,6 +2,11 @@
 // 4J Stu - Represents Java standard library class (although we miss out an
 // intermediate inheritance class that we don't care about)
 
+#include <cstdint>
+#include <string>
+#include <vector>
+
+#include "../../../Minecraft.Client/Platform/Linux/Stubs/winapi_stubs.h"
 #include "OutputStream.h"
 #include "DataOutput.h"
 
@@ -20,8 +25,8 @@ public:
     void deleteChildStream();
 
     virtual void write(unsigned int b);
-    virtual void write(byteArray b);
-    virtual void write(byteArray b, unsigned int offset, unsigned int length);
+    virtual void write(const std::vector<uint8_t>& b);
+    virtual void write(const std::vector<uint8_t>& b, unsigned int offset, unsigned int length);
     virtual void close();
     virtual void writeByte(uint8_t a);
     virtual void writeDouble(double a);

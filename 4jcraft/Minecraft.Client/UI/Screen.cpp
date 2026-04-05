@@ -1,13 +1,12 @@
-#include "../Platform/stdafx.h"
 #include "Screen.h"
 #include "Button.h"
+#include "../Platform/stdafx.h"
 #include "../Rendering/Particles/GuiParticles.h"
 #include "../Rendering/Tesselator.h"
 #include "../Textures/Textures.h"
 #include "../../Minecraft.World/Util/SoundTypes.h"
 
-Screen::Screen()  // 4J added
-{
+Screen::Screen() {
     minecraft = nullptr;
     width = 0;
     height = 0;

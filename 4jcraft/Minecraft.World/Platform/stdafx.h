@@ -72,10 +72,10 @@ void MemSect(int sect);
 #include "../../Minecraft.Client/Platform/Windows64/4JLibs/inc/4J_Storage.h"
 #include "../../Minecraft.Client/Platform/Windows64/4JLibs/inc/4J_Input.h"
 #else
-#include "4J_Profile.h"
-#include "4J_Render.h"
-#include "4J_Storage.h"
-#include "4J_Input.h"
+#include "../../4J.Profile/4J_Profile.h"
+#include "../../4J.Render/4J_Render.h"
+#include "../../4J.Storage/4J_Storage.h"
+#include "../../4J.Input/4J_Input.h"
 #endif
 
 #include "../../Minecraft.Client/Platform/Common/Network/GameNetworkManager.h"

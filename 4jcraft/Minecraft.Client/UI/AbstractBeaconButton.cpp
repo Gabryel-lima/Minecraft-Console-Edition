@@ -1,7 +1,7 @@
-#include "../../Platform/stdafx.h"
+#include "../Platform/stdafx.h"
 #include "AbstractBeaconButton.h"
 #include "../Textures/Textures.h"
-#include "../../../Minecraft.Client/Minecraft.h"
+#include "../Minecraft.h"
 #include <GL/gl.h>
 
 // 4jcraft: referenced from MCP 8.11 (JE 1.6.4)

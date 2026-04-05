@@ -24,5 +24,5 @@ Repositório raiz do workspace para a reconstrução de Minecraft: Console Editi
 3. Para preparar o ambiente Python de apoio, rode `python3 -m pip install -r requirements.txt`.
 
 ## 🧭 Observações
-Está é uma implementação própria baseada no repositório do [!4jcraft](https://github.com/4jcraft/4jcraft).
+Esta é uma implementação própria baseada no repositório do [4jcraft](https://github.com/4jcraft/4jcraft).
 Os scripts em `scripts/` usam apenas a biblioteca padrão do Python; este arquivo existe principalmente para o tooling de build baseado em Meson.

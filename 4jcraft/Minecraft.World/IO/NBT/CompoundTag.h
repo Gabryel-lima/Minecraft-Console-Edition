@@ -1,4 +1,9 @@
 #pragma once
+
+#include <memory>
+#include <unordered_map>
+#include <vector>
+
 #include "Tag.h"
 #include "ListTag.h"
 #include "ByteTag.h"

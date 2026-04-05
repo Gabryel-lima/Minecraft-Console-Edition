@@ -1,4 +1,4 @@
-#include "../Minecraft.World/Platform/stdafx.h"
+#include "../../../Minecraft.World/Platform/stdafx.h"
 #include "ConsoleGameMode.h"
 #include "Tutorial/Tutorial.h"
 

@@ -1,6 +1,20 @@
 #pragma once
+
 class Font;
 
+/** A classe base para todos os componentes de interface gráfica. 
+ *  que são usados por todas as telas do jogo.
+ *  @param blitOffset - a profundidade de renderização para evitar z-fighting. 
+ *  Deve ser incrementada para cada componente renderizado, e resetada para 0 no 
+ *  início de cada frame.
+ *  @param hLine - desenha uma linha horizontal
+ *  @param vLine - desenha uma linha vertical
+ *  @param fill - desenha um retângulo sólido
+ *  @param fillGradient - desenha um retângulo com um gradiente vertical
+ *  @param drawCenteredString - desenha uma string centralizada
+ *  @param drawString - desenha uma string normal
+ *  @param blit - desenha uma parte de uma textura
+*/
 class GuiComponent {
 protected:
     float blitOffset;

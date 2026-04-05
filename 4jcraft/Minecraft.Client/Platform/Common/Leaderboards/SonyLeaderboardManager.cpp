@@ -10,8 +10,8 @@
 
 #include "base64.h"
 
-#include "Common/Consoles_App.h"
-#include "Common/Network/Sony/SQRNetworkManager.h"
+#include "../Consoles_App.h"
+#include "../Network/Sony/SQRNetworkManager.h"
 
 #include "../../../../Minecraft.World/Util/StringHelpers.h"
 

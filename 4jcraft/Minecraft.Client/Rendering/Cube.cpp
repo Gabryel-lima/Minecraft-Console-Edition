@@ -1,7 +1,7 @@
 #include "../Platform/stdafx.h"
 #include "Models/Model.h"
 #include "Models/ModelPart.h"
-#include "Rendering/Vertex.h"
+#include "Vertex.h"
 #include "Cube.h"
 #include <array>
 

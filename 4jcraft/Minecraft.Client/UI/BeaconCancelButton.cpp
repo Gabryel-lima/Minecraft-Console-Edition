@@ -1,7 +1,7 @@
-#include "../../Platform/stdafx.h"
+#include "../Platform/stdafx.h"
 #include "BeaconCancelButton.h"
 #include "Screens/BeaconScreen.h"
-#include "../../../Minecraft.World/Headers/net.minecraft.locale.h"
+#include "../../Minecraft.World/Headers/net.minecraft.locale.h"
 
 // 4jcraft: referenced from MCP 8.11 (JE 1.6.4)
 #ifdef ENABLE_JAVA_GUIS

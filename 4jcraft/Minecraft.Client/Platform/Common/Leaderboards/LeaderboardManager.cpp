@@ -1,6 +1,6 @@
-#include "../../Minecraft.World/Platform/stdafx.h"
+#include "../../../../Minecraft.World/Platform/stdafx.h"
 
-#include "../../Minecraft.World/Util/StringHelpers.h"
+#include "../../../../Minecraft.World/Util/StringHelpers.h"
 
 #include "LeaderboardManager.h"
 

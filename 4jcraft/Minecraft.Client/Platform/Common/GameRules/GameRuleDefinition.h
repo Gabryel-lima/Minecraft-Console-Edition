@@ -1,9 +1,10 @@
 #pragma once
 // using namespace std;
+#include <memory>
 #include <unordered_map>
 #include <string>
 
-#include "../../Minecraft.World/Items/ItemInstance.h"
+#include "../../../../Minecraft.World/Items/ItemInstance.h"
 #include "ConsoleGameRulesConstants.h"
 
 #include "GameRulesInstance.h"
@@ -12,6 +13,7 @@ class GameRule;
 class LevelRuleset;
 class Player;
 class WstringLookup;
+class DataOutputStream;
 
 class GameRuleDefinition {
 private:

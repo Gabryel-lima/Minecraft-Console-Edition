@@ -6,7 +6,8 @@
 #include <cstdint>
 
 #include "GameRuleDefinition.h"
-#include "../../Minecraft.World/WorldGen/Features/StructureFeature.h"
+#include "../../../../Minecraft.World/WorldGen/Features/StructureFeature.h"
+#include "../../../../Minecraft.Client/Platform/Common/Consoles_App.h"
 
 class ApplySchematicRuleDefinition;
 class LevelChunk;

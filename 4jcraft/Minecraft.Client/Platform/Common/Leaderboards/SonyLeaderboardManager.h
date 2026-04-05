@@ -1,7 +1,7 @@
 #pragma once
 #include <mutex>
 
-#include "Common/Leaderboards/LeaderboardManager.h"
+#include "LeaderboardManager.h"
 
 typedef SceRtcTick SonyRtcTick;
 

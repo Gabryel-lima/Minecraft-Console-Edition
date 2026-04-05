@@ -1,7 +1,11 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <mutex>
+#include <unordered_map>
+#include <vector>
+#include <string>
 
 // using namespace std;
 
@@ -24,7 +28,12 @@
 #include "GameRules/GameRuleManager.h"
 #include "../../Rendering/Models/SkinBox.h"
 #include "../../Utils/ArchiveFile.h"
+#include "../../../4J.Storage/4J_Storage.h"
+#include "../../../4J.Profile/4J_Profile.h"
+#include "App_structs.h"
 #include "../../../Minecraft.World/Entities/MinecartHopper.h"
+#include "../../../Minecraft.World/Platform/x64headers/extraX64.h"
+#include "../../../Minecraft.Client/Platform/Common/App_enums.h"
 
 typedef struct _JoinFromInviteData {
     std::uint32_t dwUserIndex;       // dwUserIndex

@@ -1,6 +1,6 @@
 #pragma once
 #include "AbstractBeaconButton.h"
-#include "../../../Minecraft.World/Headers/net.minecraft.world.effect.h"
+#include "../../Minecraft.World/Headers/net.minecraft.world.effect.h"
 
 class BeaconScreen;
 

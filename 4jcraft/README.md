@@ -38,7 +38,7 @@ O caminho de build documentado aqui é Linux. Para compilar localmente, você va
 - Um compilador C++ com suporte a C++23.
 - Python 3.
 - SDL2.
-- OpenGL ou GLESv2, dependendo do renderer escolhido.
+- OpenGL + GLU para `renderer=gl3`, ou GLESv2 para `renderer=gles`.
 - zlib.
 - GLM.
 
@@ -113,12 +113,12 @@ Se você estiver usando Nix, `nix build` já produz um pacote com wrapper em `re
 
 As opções disponíveis hoje são estas:
 
-- `renderer=gl3|gles` - escolhe o backend de renderização.
-- `ui_backend=shiggy|java` - escolhe a implementação da UI. Em Linux, `shiggy` usa fallback para `java` quando a CPU não anuncia AVX.
+- `renderer=gl3|gles` - escolhe o backend de renderização; `gles` é o caminho Linux verificado e `gl3` exige GLU.
+- `ui_backend=shiggy|java` - escolhe a implementação da UI; em Linux, `shiggy` faz fallback automático para `java` quando a CPU não anuncia AVX.
 - `classic_panorama=true|false` - habilita o panorama clássico, somente com `ui_backend=java`.
-- `enable_vsync=true|false` - controla V-Sync.
+- `enable_vsync=true|false` - controla V-Sync e as opções de desbloqueio do framerate.
 - `enable_frame_profiler=true|false` - habilita o profiler de frame.
-- `occlusion_culling=off|frustum|bfs|hardware` - escolhe o modo de occlusion culling.
+- `occlusion_culling=off|frustum|bfs|hardware` - escolhe o modo de occlusion culling; `off` desativa todo o culling e é útil só para debug.
 
 O caminho Linux mais previsível hoje é `renderer=gles`. O modo padrão `gl3` continua disponível se você tiver as dependências correspondentes instaladas.
 
@@ -132,7 +132,7 @@ Antes de enviar mudanças, siga o padrão dos módulos, preserve os comentários
 
 ## 🧯 Problemas comuns
 
-- Se a configuração falhar por causa de GLU, use `-Drenderer=gles` ou instale as dependências de GLU para o backend `gl3`.
+- Se você estiver configurando `renderer=gl3`, instale as dependências de GLU; para o caminho Linux verificado, use `-Drenderer=gles`.
 - Se uma máquina Linux antiga não suportar AVX, mantenha `ui_backend=shiggy` ou deixe o padrão: o build agora troca automaticamente para `java` e evita o crash de instrução ilegal.
 - Se o jogo iniciar mas não encontrar assets, execute a partir de `build/Minecraft.Client` ou use a instalação empacotada.
 - Se você quiser reproduzir o ambiente de CI, consulte os workflows em [.github/workflows/build-linux.yml](.github/workflows/build-linux.yml) e [.github/workflows/release-linux.yml](.github/workflows/release-linux.yml).
