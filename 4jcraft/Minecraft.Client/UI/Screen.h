@@ -1,5 +1,7 @@
 #pragma once
+
 #include "GuiComponent.h"
+
 class Button;
 class GuiParticles;
 class Minecraft;

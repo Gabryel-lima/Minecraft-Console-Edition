@@ -1,4 +1,5 @@
 #pragma once
+
 #include "../Screen.h"
 
 class PauseScreen : public Screen {

@@ -1,5 +1,5 @@
-#include "../Platform/stdafx.h"
 #include "GuiComponent.h"
+#include "../Platform/stdafx.h"
 #include "../Rendering/Tesselator.h"
 
 void GuiComponent::hLine(int x0, int x1, int y, int col) {
