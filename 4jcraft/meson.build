@@ -6,7 +6,8 @@ project(
   default_options: [
     'cpp_std=c++23',
     'warning_level=0',
-    'buildtype=debug', # for now
+    'buildtype=debugoptimized',
+    'b_ndebug=if-release',
     'unity=on', # merge source files per target
     'unity_size=8', # TODO: mess around with this
     'b_pch=true', # precompiled headers
@@ -24,10 +25,15 @@ global_cpp_defs = [
   '-DSPLIT_SAVES',
   '-D_LARGE_WORLDS',
   '-D_EXTENDED_ACHIEVEMENTS',
-  '-D_DEBUG_MENUS_ENABLED',
-  '-D_DEBUG',
-  '-DDEBUG',
 ]
+
+if get_option('debug')
+  global_cpp_defs += [
+    '-D_DEBUG_MENUS_ENABLED',
+    '-D_DEBUG',
+    '-DDEBUG',
+  ]
+endif
 
 if host_machine.system() == 'linux'
   global_cpp_defs += ['-Dlinux', '-D__linux', '-D__linux__']

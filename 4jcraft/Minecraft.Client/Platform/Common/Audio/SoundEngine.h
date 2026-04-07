@@ -3,7 +3,7 @@ class Mob;
 class Options;
 using namespace std;
 #include "../../../../Minecraft.World/Util/SoundTypes.h"
-#include "../../../../subprojects/miniaudio-0.11.22/miniaudio.h"
+#include "../../../../subprojects/packagefiles/miniaudio-0.11.22/miniaudio.h"
 constexpr float SFX_3D_MIN_DISTANCE = 1.0f;
 constexpr float SFX_3D_MAX_DISTANCE = 16.0f;
 constexpr float SFX_3D_ROLLOFF = 0.5f;

@@ -154,8 +154,8 @@ bool File::_delete() {
     const bool result = fs::remove(ToFilesystemPath(getPath()), error);
     if (!result || error) {
 #ifndef _CONTENT_PACKAGE
-        printf("File::_delete - Error code %d (%#0.8X)\n", error.value(),
-               error.value());
+    printf("File::_delete - Error code %d (0x%08X)\n", error.value(),
+           static_cast<unsigned int>(error.value()));
 #endif
         return false;
     }

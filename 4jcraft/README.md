@@ -71,18 +71,28 @@ O projeto usa Meson + Ninja. O arquivo [meson.options](meson.options) define as 
 Configuração recomendada para Linux local:
 
 ```bash
-meson setup build --wipe -Drenderer=gles
+./scripts/setup_build.sh
 meson compile -C build -j $(nproc) -v Minecraft.Client
 ```
+
+O helper acima ativa `ccache` automaticamente quando ele está instalado, exporta `CCACHE_BASEDIR` e `CCACHE_COMPILERCHECK=content`, escolhe `buildtype=debugoptimized` por padrão e usa `unity=on` no build local. Isso mantém o código principal em unity build e evita inflar desnecessariamente o número de unidades de compilação numa árvore recém-configurada.
+
+Se você quiser priorizar granularidade de rebuild ao editar um único `.cpp`, pode sobrescrever isso com `UNITY=subprojects ./scripts/setup_build.sh` ou passar `-Dunity=subprojects` explicitamente.
+
+Se você usar `--native-file=./scripts/llvm_native_ccache.txt` num Linux limpo, o helper tenta instalar automaticamente as ferramentas que faltarem para esse caminho: `build-essential`, `pkg-config`, `ninja`, `ccache`, `clang`, `lld` e as dependências Python necessárias para o Meson.
+
+Se você rodar o helper de novo no mesmo diretório, ele usa `--reconfigure` em vez de `--wipe`, então os objetos já compilados continuam válidos. Use `./scripts/setup_build.sh build --wipe` apenas quando trocar toolchain, launcher de cache ou outra opção estrutural incompatível.
 
 Se você preferir reproduzir a configuração de clang/LLD usada em automação, use:
 
 ```bash
-meson setup build --wipe --native-file=./scripts/llvm_native.txt
+./scripts/setup_build.sh build --native-file=./scripts/llvm_native_ccache.txt
 meson compile -C build -j $(nproc)
 ```
 
-Por padrão, o projeto gera um build de debug. Se quiser outro tipo de build, passe `-Dbuildtype=release` ou `-Dbuildtype=debugoptimized` ao `meson setup`.
+Por padrão, o projeto agora gera um build `debugoptimized`. Se quiser depuração total, passe `-Dbuildtype=debug`; para o melhor desempenho em runtime, passe `-Dbuildtype=release`.
+
+Nos ambientes de desenvolvimento e CI, o `ccache` já fica configurado com `CCACHE_BASEDIR` e `CCACHE_COMPILERCHECK=content`, então compilações equivalentes podem ser reaproveitadas entre builds e entre diretórios diferentes quando a linha de compilação é a mesma. Isso não cruza alvos incompatíveis, mas evita recompilar unidade por unidade sem necessidade.
 
 ## ▶️ Executar sem instalar
 
@@ -100,7 +110,7 @@ Isso funciona porque o build copia os assets necessários para esse diretório. 
 Para instalar em um prefixo local, use um `prefix` explícito ao configurar o build e depois rode `meson install`:
 
 ```bash
-meson setup build --wipe --prefix=$HOME/.local -Drenderer=gles
+./scripts/setup_build.sh build --prefix=$HOME/.local
 meson compile -C build -j $(nproc)
 meson install -C build
 ```

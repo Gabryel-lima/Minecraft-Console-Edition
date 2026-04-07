@@ -13,13 +13,23 @@ on:
       - '**.hxx'
       - '**.inl'
       - "**meson.build"
+      - "meson.options"
       - "flake.nix"
-      - '.github/workflows/build-linux.yml'
+      - 'scripts/**/*.sh'
+      - 'scripts/**/*.txt'
+      - '.github/workflows/*.yml'
   workflow_dispatch:
 
 jobs:
   build-linux:
     runs-on: ubuntu-latest
+
+    env:
+      CC: "ccache clang"
+      CXX: "ccache clang++"
+      CCACHE_DIR: ${{ runner.temp }}/ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_COMPILERCHECK: content
 
     steps:
       - name: Checkout repository
@@ -30,13 +40,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential ccache python3 python3-pip ninja-build libsdl2-dev libgl-dev libglu1-mesa-dev libpthread-stubs0-dev libglm-dev
           python -m pip install meson
-          ccache -M 5G || true
 
       - name: Restore ccache
         uses: actions/cache@v4
         with:
-          path: ~/.ccache
+          path: ${{ runner.temp }}/ccache
           key: ${{ runner.os }}-ccache-${{ hashFiles('**/meson.build') }}
+
+      - name: Tune ccache
+        run: |
+          mkdir -p "$CCACHE_DIR"
+          ccache -M 5G || true
 
       - name: Restore meson cache
         uses: actions/cache@v4
@@ -45,22 +59,11 @@ jobs:
           key: ${{ runner.os }}-meson-${{ hashFiles('**/meson.build') }}
 
       - name: Configure Meson
-        env:
-          CC: "ccache clang"
-          CXX: "ccache clang++"
-          CCACHE_DIR: ${{ runner.temp }}/ccache
         run: |
-          mkdir -p "$CCACHE_DIR"
-          export CCACHE_DIR="$CCACHE_DIR"
-          meson setup build --wipe --native-file=./scripts/llvm_native.txt
+          meson setup build --wipe --native-file=./scripts/llvm_native_ccache.txt
 
       - name: Build with Meson
-        env:
-          CC: "ccache clang"
-          CXX: "ccache clang++"
-          CCACHE_DIR: ${{ runner.temp }}/ccache
         run: |
-          export CCACHE_DIR="${{ runner.temp }}/ccache"
           meson compile -C build -j $(nproc)
 
       - name: Install patchelf

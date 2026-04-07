@@ -158,6 +158,16 @@
               ];
 
               shellHook = ''
+                if command -v git >/dev/null 2>&1; then
+                  export CCACHE_BASEDIR="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+                else
+                  export CCACHE_BASEDIR="$PWD"
+                fi
+                export CCACHE_COMPILERCHECK=content
+                if [ -z "$CCACHE_DIR" ]; then
+                  export CCACHE_DIR="$HOME/.cache/ccache"
+                fi
+                mkdir -p "$CCACHE_DIR"
                 export CC="ccache clang"
                 export CXX="ccache clang++"
               '';

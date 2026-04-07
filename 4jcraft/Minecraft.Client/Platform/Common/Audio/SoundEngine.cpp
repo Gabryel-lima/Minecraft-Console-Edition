@@ -442,14 +442,18 @@ void SoundEngine::playMusicTick() {
                         snprintf(c, 512, "%s%s%s%s%s", base.c_str(), r, folder,
                                  track, e);
                         if (access(c, F_OK) != -1) {
-                            strncpy(m_szStreamName, c, 511);
+                            strncpy(m_szStreamName, c,
+                                    sizeof(m_szStreamName) - 1);
+                            m_szStreamName[sizeof(m_szStreamName) - 1] = '\0';
                             found = true;
                             break;
                         }
                         // try without folder prefix
                         snprintf(c, 512, "%s%s%s%s", base.c_str(), r, track, e);
                         if (access(c, F_OK) != -1) {
-                            strncpy(m_szStreamName, c, 511);
+                            strncpy(m_szStreamName, c,
+                                    sizeof(m_szStreamName) - 1);
+                            m_szStreamName[sizeof(m_szStreamName) - 1] = '\0';
                             found = true;
                             break;
                         }

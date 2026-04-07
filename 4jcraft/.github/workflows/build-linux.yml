@@ -13,8 +13,11 @@ on:
       - '**.hxx'
       - '**.inl'
       - "**meson.build"
+      - "meson.options"
       - "flake.nix"
-      - '.github/workflows/build-linux.yml'
+      - 'scripts/**/*.sh'
+      - 'scripts/**/*.txt'
+      - '.github/workflows/*.yml'
 
   pull_request:
     paths: *workflow_paths
@@ -24,6 +27,13 @@ on:
 jobs:
   build-linux:
     runs-on: ubuntu-latest
+
+    env:
+      CC: "ccache clang"
+      CXX: "ccache clang++"
+      CCACHE_DIR: ${{ runner.temp }}/ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_COMPILERCHECK: content
 
     steps:
       - name: Checkout repository
@@ -52,8 +62,6 @@ jobs:
           meson setup build --wipe
 
       - name: Build with Meson
-        env:
-          CCACHE_DIR: ${{ runner.temp }}/ccache
         run: |
           # Use all available cores for faster parallel builds
           meson compile -C build -j $(nproc) -v Minecraft.Client

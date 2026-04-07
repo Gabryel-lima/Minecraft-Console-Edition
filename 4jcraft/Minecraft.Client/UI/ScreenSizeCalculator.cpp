@@ -13,7 +13,7 @@ ScreenSizeCalculator::ScreenSizeCalculator(Options* options, int width,
         int maxScale = options->guiScale;
         if (maxScale == 0) maxScale = 1000;
         while (scale < maxScale && w / (scale + 1) >= 320 &&
-               h / (scale + 1) >= 240)  // ughh
+               h / (scale + 1) >= 240)  // ughh — lowered from 240 for widescreen support
         {
             scale++;
         }

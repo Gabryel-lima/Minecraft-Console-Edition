@@ -1,0 +1,5 @@
+[binaries]
+c = ['ccache', 'clang']
+cpp = ['ccache', 'clang++']
+c_ld = 'lld'
+cpp_ld = 'lld'
