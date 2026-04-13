@@ -11,6 +11,34 @@
 #include "../../../Minecraft.World/Headers/net.minecraft.world.h"
 #include "../../GameState/Options.h"
 #include "../../Textures/TextureAtlas.h"
+#include "../../UI/Gui.h"
+
+namespace {
+void alignGuiQuad(float x, float y, float w, float h, float& x0, float& y0,
+                  float& x1, float& y1) {
+    const float extraShift = 0.75f;
+
+    float guiScale = Gui::currentGuiScaleFactor;
+    if (guiScale <= 0.0f) {
+        guiScale = 1.0f;
+    }
+
+    float dx = (extraShift * (float)Minecraft::GetInstance()->width) /
+               (float)Minecraft::GetInstance()->width_phys;
+    dx /= guiScale;
+    float dy = extraShift / guiScale;
+
+    float fx = floorf(x * guiScale) / guiScale;
+    float fy = floorf(y * guiScale) / guiScale;
+    float fw = floorf(w * guiScale) / guiScale;
+    float fh = floorf(h * guiScale) / guiScale;
+
+    x0 = fx - dx;
+    y0 = fy - dy;
+    x1 = x0 + fw;
+    y1 = y0 + fh;
+}
+}  // namespace
 
 ItemRenderer::ItemRenderer() : EntityRenderer() {
     random = new Random();
@@ -518,34 +546,8 @@ void ItemRenderer::renderAndDecorateItem(
 void ItemRenderer::blitGlint(int id, float x, float y, float w, float h) {
     float us = 1.0f / 64.0f / 4;
     float vs = 1.0f / 64.0f / 4;
-
-    // 4J - calculate what the pixel coordinates will be in final screen
-    // coordinates
-    float sfx = (float)Minecraft::GetInstance()->width /
-                (float)Minecraft::GetInstance()->width_phys;
-    float sfy = (float)Minecraft::GetInstance()->height /
-                (float)Minecraft::GetInstance()->height_phys;
-    float xx0 = x * sfx;
-    float xx1 = (x + w) * sfx;
-    float yy0 = y * sfy;
-    float yy1 = (y + h) * sfy;
-    // Round to whole pixels - rounding inwards so that we don't overlap any
-    // surrounding graphics
-    xx0 = ceilf(xx0);
-    xx1 = floorf(xx1);
-    yy0 = ceilf(yy0);
-    yy1 = floorf(yy1);
-    // Offset by half to get actual centre of pixel - again moving inwards to
-    // avoid overlap with surrounding graphics
-    xx0 += 0.5f;
-    xx1 -= 0.5f;
-    yy0 += 0.5f;
-    yy1 -= 0.5f;
-    // Convert back to game coordinate space
-    float xx0f = xx0 / sfx;
-    float xx1f = xx1 / sfx;
-    float yy0f = yy0 / sfy;
-    float yy1f = yy1 / sfy;
+    float xx0f, yy0f, xx1f, yy1f;
+    alignGuiQuad(x, y, w, h, xx0f, yy0f, xx1f, yy1f);
 
     for (int i = 0; i < 2; i++) {
         if (i == 0) glBlendFunc(GL_SRC_COLOR, GL_ONE);
@@ -667,40 +669,8 @@ void ItemRenderer::blit(float x, float y, int sx, int sy, float w, float h) {
     float vs = 1 / 256.0f;
     Tesselator* t = Tesselator::getInstance();
     t->begin();
-
-    // 4J - calculate what the pixel coordinates will be in final screen
-    // coordinates
-    float sfx = (float)Minecraft::GetInstance()->width /
-                (float)Minecraft::GetInstance()->width_phys;
-    float sfy = (float)Minecraft::GetInstance()->height /
-                (float)Minecraft::GetInstance()->height_phys;
-    float xx0 = x * sfx;
-    float xx1 = (x + w) * sfx;
-    float yy0 = y * sfy;
-    float yy1 = (y + h) * sfy;
-    // Round to whole pixels - rounding inwards so that we don't overlap any
-    // surrounding graphics
-    xx0 = ceilf(xx0);
-    xx1 = floorf(xx1);
-    yy0 = ceilf(yy0);
-    yy1 = floorf(yy1);
-    // Offset by half to get actual centre of pixel - again moving inwards to
-    // avoid overlap with surrounding graphics
-    xx0 += 0.5f;
-    xx1 -= 0.5f;
-    yy0 += 0.5f;
-    yy1 -= 0.5f;
-    // Convert back to game coordinate space
-    float xx0f = xx0 / sfx;
-    float xx1f = xx1 / sfx;
-    float yy0f = yy0 / sfy;
-    float yy1f = yy1 / sfy;
-
-    // 4J - subtracting 0.5f (actual screen pixels, so need to compensate for
-    // physical & game width) from each x & y coordinate to compensate for
-    // centre of pixels in directx vs openGL
-    float f = (0.5f * (float)Minecraft::GetInstance()->width) /
-              (float)Minecraft::GetInstance()->width_phys;
+    float xx0f, yy0f, xx1f, yy1f;
+    alignGuiQuad(x, y, w, h, xx0f, yy0f, xx1f, yy1f);
 
     t->vertexUV(xx0f, yy1f, (float)(blitOffset), (float)((sx + 0) * us),
                 (float)((sy + 16) * vs));
@@ -716,40 +686,8 @@ void ItemRenderer::blit(float x, float y, int sx, int sy, float w, float h) {
 void ItemRenderer::blit(float x, float y, Icon* tex, float w, float h) {
     Tesselator* t = Tesselator::getInstance();
     t->begin();
-
-    // 4J - calculate what the pixel coordinates will be in final screen
-    // coordinates
-    float sfx = (float)Minecraft::GetInstance()->width /
-                (float)Minecraft::GetInstance()->width_phys;
-    float sfy = (float)Minecraft::GetInstance()->height /
-                (float)Minecraft::GetInstance()->height_phys;
-    float xx0 = x * sfx;
-    float xx1 = (x + w) * sfx;
-    float yy0 = y * sfy;
-    float yy1 = (y + h) * sfy;
-    // Round to whole pixels - rounding inwards so that we don't overlap any
-    // surrounding graphics
-    xx0 = ceilf(xx0);
-    xx1 = floorf(xx1);
-    yy0 = ceilf(yy0);
-    yy1 = floorf(yy1);
-    // Offset by half to get actual centre of pixel - again moving inwards to
-    // avoid overlap with surrounding graphics
-    xx0 += 0.5f;
-    xx1 -= 0.5f;
-    yy0 += 0.5f;
-    yy1 -= 0.5f;
-    // Convert back to game coordinate space
-    float xx0f = xx0 / sfx;
-    float xx1f = xx1 / sfx;
-    float yy0f = yy0 / sfy;
-    float yy1f = yy1 / sfy;
-
-    // 4J - subtracting 0.5f (actual screen pixels, so need to compensate for
-    // physical & game width) from each x & y coordinate to compensate for
-    // centre of pixels in directx vs openGL
-    float f = (0.5f * (float)Minecraft::GetInstance()->width) /
-              (float)Minecraft::GetInstance()->width_phys;
+    float xx0f, yy0f, xx1f, yy1f;
+    alignGuiQuad(x, y, w, h, xx0f, yy0f, xx1f, yy1f);
 
     t->vertexUV(xx0f, yy1f, blitOffset, tex->getU0(true), tex->getV1(true));
     t->vertexUV(xx1f, yy1f, blitOffset, tex->getU1(true), tex->getV1(true));

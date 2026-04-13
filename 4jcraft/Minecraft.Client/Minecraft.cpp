@@ -461,14 +461,14 @@ void Minecraft::setScreen(Screen* screen) {
     }
     stats->forceSave();*/
 
-    this->screen = screen;
-    if (screen == nullptr && level == nullptr) {
-        screen = new TitleScreen();
+    Screen* finalScreen = screen;
+    if (finalScreen == nullptr && level == nullptr) {
+        finalScreen = new TitleScreen();
     } else if (player != nullptr &&
                !ui.GetMenuDisplayed(player->GetXboxPad()) &&
                player->getHealth() <= 0) {
 #if defined(ENABLE_JAVA_GUIS)
-        screen = new DeathScreen();
+        finalScreen = new DeathScreen();
 #else
         // 4J Stu - If we exit from the death screen then we are saved as being
         // dead. In the Java game when you load the game you are still dead, but
@@ -483,17 +483,19 @@ void Minecraft::setScreen(Screen* screen) {
 #endif
     }
 
-    if (dynamic_cast<TitleScreen*>(screen) != nullptr) {
+    if (dynamic_cast<TitleScreen*>(finalScreen) != nullptr) {
         options->renderDebug = false;
         gui->clearMessages();
     }
 
-    if (screen != nullptr) {
+    this->screen = finalScreen;
+
+    if (this->screen != nullptr) {
         //        releaseMouse();	// 4J - removed
-        ScreenSizeCalculator ssc(options, width, height);
+        ScreenSizeCalculator ssc(options, width_phys, height_phys);
         int screenWidth = ssc.getWidth();
         int screenHeight = ssc.getHeight();
-        screen->init(this, screenWidth, screenHeight);
+        this->screen->init(this, screenWidth, screenHeight);
         noRender = false;
     } else {
         //        grabMouse();	// 4J - removed
@@ -503,7 +505,7 @@ void Minecraft::setScreen(Screen* screen) {
     // it's possible that player doesn't exist here yet
     // 4jcraft: reuse this for the java GUI
 #if defined(ENABLE_JAVA_GUIS)
-    if (screen != nullptr && player != nullptr) {
+    if (this->screen != nullptr && player != nullptr) {
         if (player && player->GetXboxPad() != -1) {
             InputManager.SetMenuDisplayed(player->GetXboxPad(), true);
         }
@@ -1914,9 +1916,9 @@ void Minecraft::resize(int width, int height) {
     this->height = height;
 
     if (screen != nullptr) {
-        // 4jcraft: use adjusted logical width instead of raw width for correct
-        // screen size calculation.
-        ScreenSizeCalculator ssc(options, this->width, height);
+        // 4jcraft: use the physical framebuffer size so screens stay aligned
+        // with the same projection used by the GUI renderer.
+        ScreenSizeCalculator ssc(options, width_phys, height_phys);
         int screenWidth = ssc.getWidth();
         int screenHeight = ssc.getHeight();
         screen->init(

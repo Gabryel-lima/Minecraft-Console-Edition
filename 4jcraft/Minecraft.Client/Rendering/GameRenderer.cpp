@@ -993,11 +993,14 @@ void GameRenderer::render(float a, bool bFirst) {
     GameRenderer::anaglyph3d = mc->options->anaglyph3d;
 
     glViewport(0, 0, mc->width, mc->height);  // 4J - added
-    ScreenSizeCalculator ssc(mc->options, mc->width, mc->height);
-    int screenWidth = ssc.getWidth();
-    int screenHeight = ssc.getHeight();
-    int xMouse = InputManager.GetMouseX() * screenWidth / mc->width;
-    int yMouse = InputManager.GetMouseY() * screenHeight / mc->height - 1;
+    int xMouse = 0;
+    int yMouse = 0;
+    if (mc->screen != nullptr) {
+        int fbw, fbh;
+        RenderManager.GetFramebufferSize(fbw, fbh);
+        xMouse = InputManager.GetMouseX() * mc->screen->width / fbw;
+        yMouse = InputManager.GetMouseY() * mc->screen->height / fbh - 1;
+    }
 
     int maxFps = getFpsCap(mc->options->framerateLimit);
 
@@ -1809,6 +1812,7 @@ void GameRenderer::setupGuiScreen(int forceScale /*=-1*/) {
     // 4jcraft: use actual framebuffer dimensions instead of mc->width/height
     // to ensure GUI scales correctly after a window resize.
     ScreenSizeCalculator ssc(mc->options, fbw, fbh, forceScale);
+    glViewport(0, 0, fbw, fbh);
 
     // 4jcraft: Java GUI screens still assume a clean 2D fixed-function style
     // state.

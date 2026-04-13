@@ -121,16 +121,43 @@ Se você estiver usando Nix, `nix build` já produz um pacote com wrapper em `re
 
 ## 🧪 Opções úteis do Meson
 
-As opções disponíveis hoje são estas:
+A tabela abaixo resume as opções de build mais usadas, com comandos prontos usando o helper local. Você pode combinar várias flags no mesmo comando; o helper repassa tudo para o Meson e reaproveita o build existente com `--reconfigure` quando possível.
 
-- `renderer=gl3|gles` - escolhe o backend de renderização; `gles` é o caminho Linux verificado e `gl3` exige GLU.
-- `ui_backend=shiggy|java` - escolhe a implementação da UI; em Linux, `shiggy` faz fallback automático para `java` quando a CPU não anuncia AVX.
-- `classic_panorama=true|false` - habilita o panorama clássico, somente com `ui_backend=java`.
-- `enable_vsync=true|false` - controla V-Sync e as opções de desbloqueio do framerate.
-- `enable_frame_profiler=true|false` - habilita o profiler de frame.
-- `occlusion_culling=off|frustum|bfs|hardware` - escolhe o modo de occlusion culling; `off` desativa todo o culling e é útil só para debug.
+| Opção | Comando | Observações |
+| --- | --- | --- |
+| `renderer=gles` | `./scripts/setup_build.sh build -Drenderer=gles` | Caminho Linux mais previsível; não exige GLU. |
+| `renderer=gl3` | `./scripts/setup_build.sh build -Drenderer=gl3` | Usa OpenGL desktop e exige GLU. |
+| `ui_backend=shiggy` | `./scripts/setup_build.sh build -Dui_backend=shiggy` | Backend padrão; no Linux sem AVX faz fallback automático para `java`. |
+| `ui_backend=java` | `./scripts/setup_build.sh build -Dui_backend=java` | Útil em máquinas sem AVX ou para evitar o backend `shiggy`. |
+| `classic_panorama=true` | `./scripts/setup_build.sh build -Dui_backend=java -Dclassic_panorama=true` | Só vale com `ui_backend=java`. |
+| `enable_vsync=true` | `./scripts/setup_build.sh build -Denable_vsync=true` | Mantém o V-Sync ligado. |
+| `enable_vsync=false` | `./scripts/setup_build.sh build -Denable_vsync=false` | Desliga o V-Sync e libera as opções de framerate. |
+| `enable_frame_profiler=true` | `./scripts/setup_build.sh build -Denable_frame_profiler=true` | Habilita o profiler interno de frame. |
+| `occlusion_culling=off` | `./scripts/setup_build.sh build -Docclusion_culling=off` | Desativa todo o culling; útil apenas para debug. |
+| `occlusion_culling=frustum` | `./scripts/setup_build.sh build -Docclusion_culling=frustum` | Padrão atual. |
+| `occlusion_culling=bfs` | `./scripts/setup_build.sh build -Docclusion_culling=bfs` | Culling por conectividade experimental. |
+| `occlusion_culling=hardware` | `./scripts/setup_build.sh build -Docclusion_culling=hardware` | Usa queries de GPU. |
+| `buildtype=debug` | `./scripts/setup_build.sh build -Dbuildtype=debug` | Melhor para iterar com menos custo de compilação. |
+| `buildtype=debugoptimized` | `./scripts/setup_build.sh build` | Padrão do helper atual. |
+| `buildtype=release` | `./scripts/setup_build.sh build -Dbuildtype=release` | Melhor para runtime, mas compila mais devagar. |
+| `unity=on` | `./scripts/setup_build.sh build -Dunity=on` | Agrupa fontes em unidades de unity; padrão do helper. |
+| `unity=subprojects` | `UNITY=subprojects ./scripts/setup_build.sh build` | Reduz o raio de rebuild ao editar um único `.cpp`. |
+| `--native-file=./scripts/llvm_native_ccache.txt` | `./scripts/setup_build.sh build --native-file=./scripts/llvm_native_ccache.txt` | Usa clang + lld + ccache. |
+| `--wipe` | `./scripts/setup_build.sh build --wipe` | Recria o diretório de build; use só ao trocar toolchain ou flags estruturais. |
 
-O caminho Linux mais previsível hoje é `renderer=gles`. O modo padrão `gl3` continua disponível se você tiver as dependências correspondentes instaladas.
+Se você quiser combinar várias opções, basta colocá-las no mesmo comando. Exemplo:
+
+```bash
+./scripts/setup_build.sh build -Drenderer=gles -Dbuildtype=debug -Dunity=subprojects
+```
+
+Um comando rápido para maior velocidade de compilação durante desenvolvimento é:
+
+```bash
+./4jcraft/scripts/setup_build.sh build -Dbuildtype=debug && cd 4jcraft/ && meson setup build --wipe -Drenderer=gles && meson compile -C build -j $(nproc) -v Minecraft.Client
+```
+
+O caminho Linux mais previsível continua sendo `renderer=gles`, e o modo `gl3` segue disponível se você tiver as dependências correspondentes instaladas.
 
 ## 🪙 Assets
 

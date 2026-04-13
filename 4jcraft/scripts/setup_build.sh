@@ -6,9 +6,9 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd)
 
 builddir=${BUILD_DIR:-build}
-default_buildtype=${BUILDTYPE:-debugoptimized}
-default_renderer=${RENDERER:-gles}
-default_unity=${UNITY:-on}
+default_buildtype=${BUILDTYPE:-debug} # Mude aqui o tipo de build padrão (debug, release, etc.)
+default_renderer=${RENDERER:-gles} # Mude aqui o renderizador padrão (gles, vulkan, etc.)
+default_unity=${UNITY:-on} # Mude aqui a configuração de unity build padrão (on, off, etc.)
 
 if [ $# -gt 0 ] && [ "${1#-}" = "$1" ]; then
   builddir=$1
