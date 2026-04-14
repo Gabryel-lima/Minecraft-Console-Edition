@@ -185,11 +185,7 @@ ServerLevel::~ServerLevel() {
 
     {
         std::lock_guard<std::recursive_mutex> lock(m_csQueueSendTileUpdates);
-        for (auto it = m_queuedSendTileUpdates.begin();
-             it != m_queuedSendTileUpdates.end(); ++it) {
-            Pos* p = *it;
-            delete p;
-        }
+        // 4J Perf: vector<Pos> uses value semantics, no individual deletes needed
         m_queuedSendTileUpdates.clear();
 
         delete this->tracker;  // MGH - added, we were losing about 500K going
@@ -1225,16 +1221,13 @@ void ServerLevel::sendParticles(const std::wstring& name, double x, double y,
 // (eg SignTileEntity when string verify returns)
 void ServerLevel::queueSendTileUpdate(int x, int y, int z) {
     std::lock_guard<std::recursive_mutex> lock(m_csQueueSendTileUpdates);
-    m_queuedSendTileUpdates.push_back(new Pos(x, y, z));
+    m_queuedSendTileUpdates.emplace_back(x, y, z);  // 4J Perf: in-place construction
 }
 
 void ServerLevel::runQueuedSendTileUpdates() {
     std::lock_guard<std::recursive_mutex> lock(m_csQueueSendTileUpdates);
-    for (auto it = m_queuedSendTileUpdates.begin();
-         it != m_queuedSendTileUpdates.end(); ++it) {
-        Pos* p = *it;
-        sendTileUpdated(p->x, p->y, p->z);
-        delete p;
+    for (const auto& p : m_queuedSendTileUpdates) {
+        sendTileUpdated(p.x, p.y, p.z);
     }
     m_queuedSendTileUpdates.clear();
 }

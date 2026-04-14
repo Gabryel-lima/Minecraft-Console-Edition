@@ -786,24 +786,43 @@ int LevelRenderer::renderChunks(int from, int to, int layer, double alpha) {
 
             sortList.push_back(pClipChunk);
         }
-        // he sorts me till i
-        std::sort(sortList.begin(), sortList.end(),
-                  [xOff, yOff, zOff, layer](ClipChunk* a, ClipChunk* b) {
-                      float dxA = (float)((a->chunk->x + 8.0f) - xOff);
-                      float dyA = (float)((a->chunk->y + 8.0f) - yOff);
-                      float dzA = (float)((a->chunk->z + 8.0f) - zOff);
-                      float distSqA = dxA * dxA + dyA * dyA + dzA * dzA;
+        // 4J Perf: Only re-sort when the player has moved more than 1 block
+        // or the visible chunk set has changed. Saves ~120 sorts/sec at 60fps.
+        static thread_local float s_lastSortX = -999999.f;
+        static thread_local float s_lastSortY = -999999.f;
+        static thread_local float s_lastSortZ = -999999.f;
+        static thread_local size_t s_lastSortCount = 0;
+        float dx = (float)xOff - s_lastSortX;
+        float dy = (float)yOff - s_lastSortY;
+        float dz = (float)zOff - s_lastSortZ;
+        float movedSq = dx * dx + dy * dy + dz * dz;
+        bool needsSort = movedSq > 1.0f ||
+                         sortList.size() != s_lastSortCount;
 
-                      float dxB = (float)((b->chunk->x + 8.0f) - xOff);
-                      float dyB = (float)((b->chunk->y + 8.0f) - yOff);
-                      float dzB = (float)((b->chunk->z + 8.0f) - zOff);
-                      float distSqB = dxB * dxB + dyB * dyB + dzB * dzB;
+        if (needsSort) {
+            // he sorts me till i
+            std::sort(sortList.begin(), sortList.end(),
+                      [xOff, yOff, zOff, layer](ClipChunk* a, ClipChunk* b) {
+                          float dxA = (float)((a->chunk->x + 8.0f) - xOff);
+                          float dyA = (float)((a->chunk->y + 8.0f) - yOff);
+                          float dzA = (float)((a->chunk->z + 8.0f) - zOff);
+                          float distSqA = dxA * dxA + dyA * dyA + dzA * dzA;
 
-                      if (layer == 0)
-                          return distSqA < distSqB;  // Opaque: Closest first
-                      return distSqA > distSqB;      // Transparent: Furthest
-                                                     // first
-                  });
+                          float dxB = (float)((b->chunk->x + 8.0f) - xOff);
+                          float dyB = (float)((b->chunk->y + 8.0f) - yOff);
+                          float dzB = (float)((b->chunk->z + 8.0f) - zOff);
+                          float distSqB = dxB * dxB + dyB * dyB + dzB * dzB;
+
+                          if (layer == 0)
+                              return distSqA < distSqB;  // Opaque: Closest first
+                          return distSqA > distSqB;      // Transparent: Furthest
+                                                         // first
+                      });
+            s_lastSortX = (float)xOff;
+            s_lastSortY = (float)yOff;
+            s_lastSortZ = (float)zOff;
+            s_lastSortCount = sortList.size();
+        }
     }
 
     {

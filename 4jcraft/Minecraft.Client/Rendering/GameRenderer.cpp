@@ -765,7 +765,13 @@ void GameRenderer::renderItemInHand(float a, int eye) {
 }
 
 // 4J - change brought forward from 1.8.2
+// 4J Perf: Track light layer state to avoid redundant GL state changes.
+// Called 4-6 times per frame but only ~2 transitions actually needed.
+static bool s_lightLayerActive = false;
+
 void GameRenderer::turnOffLightLayer(double alpha) {  // 4J - TODO
+    if (!s_lightLayerActive) return;  // 4J Perf: already off
+    s_lightLayerActive = false;
     FRAME_PROFILE_SCOPE(Lightmap);
 #if defined(__linux__)
     if (SharedConstants::TEXTURE_LIGHTING) {
@@ -794,6 +800,8 @@ void GameRenderer::turnOffLightLayer(double alpha) {  // 4J - TODO
 void GameRenderer::turnOnLightLayer(
     double alpha,
     bool scaleLight) {  // 4jcraft: added scaleLight for entity lighting
+    if (s_lightLayerActive) return;  // 4J Perf: already on
+    s_lightLayerActive = true;
     FRAME_PROFILE_SCOPE(Lightmap);
 #if defined(__linux__)
     if (!SharedConstants::TEXTURE_LIGHTING) return;

@@ -28,6 +28,8 @@
 
 #include "../IO/Files/ConsoleSaveFile.h"
 #include <mutex>
+#include <unordered_set>
+#include <algorithm>
 #include <xuiapp.h>
 #include "../../Minecraft.Client/Minecraft.h"
 #include "../../Minecraft.Client/Rendering/LevelRenderer.h"
@@ -2081,21 +2083,15 @@ void Level::tickEntities() {
     {
         std::lock_guard<std::recursive_mutex> lock(m_entitiesCS);
 
-        for (auto it = entities.begin(); it != entities.end();) {
-            bool found = false;
-            for (auto it2 = entitiesToRemove.begin();
-                 it2 != entitiesToRemove.end(); it2++) {
-                if ((*it) == (*it2)) {
-                    found = true;
-                    break;
-                }
-            }
-            if (found) {
-                it = entities.erase(it);
-            } else {
-                it++;
-            }
-        }
+        // 4J Perf: Build a set for O(1) lookup instead of O(n) inner loop
+        std::unordered_set<std::shared_ptr<Entity>> removeSet(
+            entitiesToRemove.begin(), entitiesToRemove.end());
+        entities.erase(
+            std::remove_if(entities.begin(), entities.end(),
+                           [&removeSet](const std::shared_ptr<Entity>& e) {
+                               return removeSet.count(e) > 0;
+                           }),
+            entities.end());
     }
 
     auto itETREnd = entitiesToRemove.end();
@@ -2152,15 +2148,21 @@ void Level::tickEntities() {
                 if (e->inChunk && hasChunk(xc, zc)) {
                     getChunk(xc, zc)->removeEntity(e);
                 }
-                // entities.remove(i--);
-                // itE = entities.erase( itE );
 
                 // 4J Find the entity again before deleting, as things might
                 // have moved in the entity array eg from the explosion created
-                // by tnt
-                auto it = find(entities.begin(), entities.end(), e);
-                if (it != entities.end()) {
-                    entities.erase(it);
+                // by tnt.
+                // 4J Perf: Check if entity is still at index i first (common
+                // case) to avoid O(n) find when the array hasn't been mutated.
+                if (i < entities.size() && entities[i] == e) {
+                    entities.erase(entities.begin() + i);
+                } else {
+                    auto it = find(entities.begin(), entities.end(), e);
+                    if (it != entities.end()) {
+                        entities.erase(it);
+                        // Update i to reflect the new position
+                        i = std::min(i, (unsigned int)entities.size());
+                    }
                 }
 
                 entityRemoved(e);
@@ -2223,13 +2225,19 @@ void Level::tickEntities() {
         }
 
         if (!pendingTileEntities.empty()) {
+            // 4J Perf: Build set once for O(1) membership checks
+            std::unordered_set<std::shared_ptr<TileEntity>> tileEntitySet(
+                tileEntityList.begin(), tileEntityList.end());
             for (auto it = pendingTileEntities.begin();
                  it != pendingTileEntities.end(); it++) {
                 std::shared_ptr<TileEntity> e = *it;
                 if (!e->isRemoved()) {
-                    if (find(tileEntityList.begin(), tileEntityList.end(), e) ==
-                        tileEntityList.end()) {
+                    // 4J Perf: Use a temporary set for O(1) duplicate
+                    // detection instead of O(n) linear search per pending
+                    // entity
+                    if (tileEntitySet.find(e) == tileEntitySet.end()) {
                         tileEntityList.push_back(e);
+                        tileEntitySet.insert(e);
                     }
                     if (hasChunk(e->x >> 4, e->z >> 4)) {
                         LevelChunk* lc = getChunk(e->x >> 4, e->z >> 4);
@@ -3380,6 +3388,11 @@ std::vector<std::shared_ptr<Entity> >* Level::getEntities(
     int zc0 = Mth::floor((bb->z0 - 2) / 16);
     int zc1 = Mth::floor((bb->z1 + 2) / 16);
 
+    // 4J Perf: Reserve estimated capacity to avoid repeated reallocations.
+    // Each chunk section typically has 0-8 entities in the AABB.
+    int chunkCount = (xc1 - xc0 + 1) * (zc1 - zc0 + 1);
+    es.reserve(chunkCount * 4);
+
     for (int xc = xc0; xc <= xc1; xc++)
         for (int zc = zc0; zc <= zc1; zc++) {
             if (hasChunk(xc, zc)) {
@@ -3404,6 +3417,10 @@ std::vector<std::shared_ptr<Entity> >* Level::getEntitiesOfClass(
     int zc1 = Mth::floor((bb->z1 + 2) / 16);
     std::vector<std::shared_ptr<Entity> >* es =
         new std::vector<std::shared_ptr<Entity> >();
+
+    // 4J Perf: Reserve estimated capacity to avoid repeated reallocations
+    int chunkCount = (xc1 - xc0 + 1) * (zc1 - zc0 + 1);
+    es->reserve(chunkCount * 2);
 
     for (int xc = xc0; xc <= xc1; xc++) {
         for (int zc = zc0; zc <= zc1; zc++) {

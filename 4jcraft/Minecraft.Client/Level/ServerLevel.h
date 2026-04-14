@@ -24,7 +24,7 @@ private:
                        TickNextTickDataKeyEq>
         tickNextTickSet;  // 4J Was HashSet
 
-    std::vector<Pos*> m_queuedSendTileUpdates;  // 4J added
+    std::vector<Pos> m_queuedSendTileUpdates;  // 4J added (Perf: value types)
     std::recursive_mutex m_csQueueSendTileUpdates;
 
 protected:

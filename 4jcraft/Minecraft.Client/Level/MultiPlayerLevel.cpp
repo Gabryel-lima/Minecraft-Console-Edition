@@ -1,5 +1,7 @@
 #include "../Platform/stdafx.h"
 #include <mutex>
+#include <unordered_set>
+#include <algorithm>
 #include "MultiPlayerLevel.h"
 #include "../Player/MultiPlayerLocalPlayer.h"
 #include "../Network/ClientConnection.h"
@@ -812,21 +814,15 @@ void MultiPlayerLevel::removeAllPendingEntityRemovals() {
 
     {
         std::lock_guard<std::recursive_mutex> lock(m_entitiesCS);
-        for (auto it = entities.begin(); it != entities.end();) {
-            bool found = false;
-            for (auto it2 = entitiesToRemove.begin();
-                 it2 != entitiesToRemove.end(); it2++) {
-                if ((*it) == (*it2)) {
-                    found = true;
-                    break;
-                }
-            }
-            if (found) {
-                it = entities.erase(it);
-            } else {
-                it++;
-            }
-        }
+        // 4J Perf: Build a set for O(1) lookup instead of O(n) inner loop
+        std::unordered_set<std::shared_ptr<Entity>> removeSet(
+            entitiesToRemove.begin(), entitiesToRemove.end());
+        entities.erase(
+            std::remove_if(entities.begin(), entities.end(),
+                           [&removeSet](const std::shared_ptr<Entity>& e) {
+                               return removeSet.count(e) > 0;
+                           }),
+            entities.end());
     }
 
     auto endIt = entitiesToRemove.end();

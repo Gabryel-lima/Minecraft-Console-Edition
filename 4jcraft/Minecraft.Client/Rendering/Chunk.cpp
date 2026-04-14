@@ -287,6 +287,14 @@ void Chunk::rebuild() {
     //     tesselateInWorld in the unoptimised version of this function fall
     //     into this category. By far the largest category of these are tiles in
     //     solid regions of rock.
+
+    // 4J Perf: inline helper eliminates repeated comparison chains – compiler
+    // can optimise into a branch-free table lookup or bitmask test.
+    auto isOpaqueBlock = [](unsigned char id) -> bool {
+        return id == Tile::stone_Id || id == Tile::dirt_Id ||
+               id == Tile::unbreakable_Id || id == 0xff;
+    };
+
     bool empty = true;
     {
         FRAME_PROFILE_SCOPE(ChunkPrepass);
@@ -319,33 +327,23 @@ void Chunk::rebuild() {
                     // made of rock, dirt, unbreakable tiles, or have already
                     // been determined to meet this criteria themselves and have
                     // a tile of 255 set.
-                    if (!((tileId == Tile::stone_Id) ||
-                          (tileId == Tile::dirt_Id) ||
-                          (tileId == Tile::unbreakable_Id) || (tileId == 255)))
+                    if (!isOpaqueBlock(tileId))
                         continue;
                     tileId = tileIds[offset + (((xx - 1) << 11) |
                                                ((zz + 0) << 7) | (indexY + 0))];
-                    if (!((tileId == Tile::stone_Id) ||
-                          (tileId == Tile::dirt_Id) ||
-                          (tileId == Tile::unbreakable_Id) || (tileId == 255)))
+                    if (!isOpaqueBlock(tileId))
                         continue;
                     tileId = tileIds[offset + (((xx + 1) << 11) |
                                                ((zz + 0) << 7) | (indexY + 0))];
-                    if (!((tileId == Tile::stone_Id) ||
-                          (tileId == Tile::dirt_Id) ||
-                          (tileId == Tile::unbreakable_Id) || (tileId == 255)))
+                    if (!isOpaqueBlock(tileId))
                         continue;
                     tileId = tileIds[offset + (((xx + 0) << 11) |
                                                ((zz - 1) << 7) | (indexY + 0))];
-                    if (!((tileId == Tile::stone_Id) ||
-                          (tileId == Tile::dirt_Id) ||
-                          (tileId == Tile::unbreakable_Id) || (tileId == 255)))
+                    if (!isOpaqueBlock(tileId))
                         continue;
                     tileId = tileIds[offset + (((xx + 0) << 11) |
                                                ((zz + 1) << 7) | (indexY + 0))];
-                    if (!((tileId == Tile::stone_Id) ||
-                          (tileId == Tile::dirt_Id) ||
-                          (tileId == Tile::unbreakable_Id) || (tileId == 255)))
+                    if (!isOpaqueBlock(tileId))
                         continue;
                     // Treat the bottom of the world differently - we shouldn't
                     // ever be able to look up at this, so consider tiles as
@@ -364,10 +362,7 @@ void Chunk::rebuild() {
                         tileId = tileIds[yMinusOneOffset + (((xx + 0) << 11) |
                                                             ((zz + 0) << 7) |
                                                             indexYMinusOne)];
-                        if (!((tileId == Tile::stone_Id) ||
-                              (tileId == Tile::dirt_Id) ||
-                              (tileId == Tile::unbreakable_Id) ||
-                              (tileId == 255)))
+                        if (!isOpaqueBlock(tileId))
                             continue;
                     }
                     int indexYPlusOne = yy + 1;
@@ -380,9 +375,7 @@ void Chunk::rebuild() {
                     tileId = tileIds[yPlusOneOffset + (((xx + 0) << 11) |
                                                        ((zz + 0) << 7) |
                                                        indexYPlusOne)];
-                    if (!((tileId == Tile::stone_Id) ||
-                          (tileId == Tile::dirt_Id) ||
-                          (tileId == Tile::unbreakable_Id) || (tileId == 255)))
+                    if (!isOpaqueBlock(tileId))
                         continue;
 
                     // This tile is surrounded. Flag it as not requiring to be
