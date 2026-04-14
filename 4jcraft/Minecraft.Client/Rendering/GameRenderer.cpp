@@ -46,6 +46,7 @@
 #include "../../Minecraft.World/IO/Streams/Compression.h"
 #include "../Platform/Common/ShutdownManager.h"
 #include "../UI/BossMobGuiInfo.h"
+#include "../UI/Gui.h"
 
 #include "../Textures/Packs/TexturePackRepository.h"
 #include "../Textures/Packs/TexturePack.h"
@@ -1035,6 +1036,27 @@ void GameRenderer::render(float a, bool bFirst) {
     if (mc->screen != nullptr) {
         FRAME_PROFILE_SCOPE(UIHud);
         glClear(GL_DEPTH_BUFFER_BIT);
+
+        // 4jcraft: when a level is loaded, Gui::render() sets up an
+        // orthographic projection using the user-selected guiScale (via
+        // setupGuiScreen(guiScale)).  Screen::width/height, however, were
+        // computed in setScreen()/resize() with auto-detected scale (no
+        // forceScale).  If the two scales differ the container centering
+        // maths — (width - imageWidth) / 2 — places the UI in the wrong
+        // spot, making the *visual* rendering drift from the interaction-
+        // area that still uses the correct Screen coordinates.
+        //
+        // Fix: reset the projection to auto-detected scale so it matches
+        // Screen::width/height, and sync currentGuiScaleFactor for correct
+        // pixel-alignment inside GuiComponent::blit / ItemRenderer blit.
+        if (mc->level != nullptr) {
+            setupGuiScreen();  // auto-detected scale, matching Screen dims
+            int fbw, fbh;
+            RenderManager.GetFramebufferSize(fbw, fbh);
+            ScreenSizeCalculator ssc(mc->options, fbw, fbh);
+            Gui::currentGuiScaleFactor = (float)ssc.scale;
+        }
+
         mc->screen->render(xMouse, yMouse, a);
         if (mc->screen != nullptr && mc->screen->particles != nullptr)
             mc->screen->particles->render(a);

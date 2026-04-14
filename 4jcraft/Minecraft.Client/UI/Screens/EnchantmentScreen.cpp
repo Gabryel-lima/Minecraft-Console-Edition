@@ -137,8 +137,12 @@ void EnchantmentScreen::renderBg(float a) {
     glPushMatrix();
     glLoadIdentity();
 
-    ScreenSizeCalculator screenSize(minecraft->options, minecraft->width,
-                                    minecraft->height);
+    // 4jcraft: use framebuffer dimensions for the 3D book viewport so that
+    // the book is centred correctly regardless of the non-widescreen logical
+    // width adjustment (minecraft->width != width_phys on 4:3 displays).
+    int fbw, fbh;
+    RenderManager.GetFramebufferSize(fbw, fbh);
+    ScreenSizeCalculator screenSize(minecraft->options, fbw, fbh);
     int scaledWidth = screenSize.getWidth();
     int scaledHeight = screenSize.getHeight();
     int scaleFactor = screenSize.scale;
@@ -187,7 +191,10 @@ void EnchantmentScreen::renderBg(float a) {
     Lighting::turnOff();
 
     glMatrixMode(GL_PROJECTION);
-    glViewport(0, 0, minecraft->width, minecraft->height);
+    // 4jcraft: restore the viewport to the full framebuffer, not the logical
+    // window dimensions, so that subsequent rendering (buttons, slots,
+    // tooltips) covers the entire display area.
+    glViewport(0, 0, fbw, fbh);
     glPopMatrix();
     glMatrixMode(GL_MODELVIEW);
     glPopMatrix();

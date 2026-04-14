@@ -92,10 +92,15 @@ void Screen::updateEvents() {
     int fbw, fbh;
     RenderManager.GetFramebufferSize(fbw, fbh);
     glViewport(0, 0, fbw, fbh);
-    ScreenSizeCalculator ssc(minecraft->options, minecraft->width,
-                             minecraft->height);
-    int screenWidth = ssc.getWidth();
-    int screenHeight = ssc.getHeight();
+    // 4jcraft: use the Screen's own width/height instead of recomputing from
+    // minecraft->width/height.  The members were calculated once in
+    // setScreen()/resize() using the physical framebuffer size with auto-
+    // detected scale, and the rendering projection is now also reset to the
+    // same auto-detected scale (see GameRenderer::render fix).  Recomputing
+    // from minecraft->width (which is adjusted for non-widescreen) caused a
+    // mismatch that shifted click positions relative to the rendered UI.
+    int screenWidth = this->width;
+    int screenHeight = this->height;
     int xMouse = InputManager.GetMouseX() * screenWidth / fbw;
     int yMouse = InputManager.GetMouseY() * screenHeight / fbh - 1;
 

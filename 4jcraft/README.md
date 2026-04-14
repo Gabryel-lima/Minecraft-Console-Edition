@@ -153,8 +153,16 @@ Se você quiser combinar várias opções, basta colocá-las no mesmo comando. E
 
 Um comando rápido para maior velocidade de compilação durante desenvolvimento é:
 
+* Vale notar que só útil o --wipe na primeira configuração ou quando trocar toolchain ou opções estruturais; para mudanças iterativas, o helper reaproveita o build existente com --reconfigure, então as unidades de compilação que não mudaram continuam válidas.
+
 ```bash
 ./4jcraft/scripts/setup_build.sh build -Dbuildtype=debug && cd 4jcraft/ && meson setup build --wipe -Drenderer=gles && meson compile -C build -j $(nproc) -v Minecraft.Client
+```
+
+Para iterar mais rápido com mudanças frequentes, use `UNITY=subprojects` para reduzir o raio de rebuild:
+
+```bash
+cd 4jcraft/ && meson setup build --reconfigure -Drenderer=gles && meson compile -C build -j $(nproc) -v Minecraft.Client
 ```
 
 O caminho Linux mais previsível continua sendo `renderer=gles`, e o modo `gl3` segue disponível se você tiver as dependências correspondentes instaladas.
