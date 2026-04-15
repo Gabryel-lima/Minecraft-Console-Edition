@@ -722,6 +722,22 @@ static inline bool QueryPerformanceCounter(LARGE_INTEGER* lpPerformanceCount) {
 // https://learn.microsoft.com/en-us/windows/win32/api/debugapi/nf-debugapi-outputdebugstringa
 static inline void OutputDebugStringA(const char* lpOutputString) {
     if (!lpOutputString) return;
+
+#if defined(_DEBUG) || defined(DEBUG) || defined(_DEBUG_MENUS_ENABLED)
+    static int s_debugCharCount = 0;
+    static constexpr int kDebugCharsBeforeClear = 50;
+
+    s_debugCharCount += (int)strlen(lpOutputString);
+
+    while (s_debugCharCount >= kDebugCharsBeforeClear) {
+        if (isatty(fileno(stderr))) {
+            // ANSI clear-screen + cursor-home to keep debug spam bounded.
+            fputs("\x1b[2J\x1b[H", stderr);
+        }
+        s_debugCharCount -= kDebugCharsBeforeClear;
+    }
+#endif
+
     fputs(lpOutputString, stderr);
 }
 
