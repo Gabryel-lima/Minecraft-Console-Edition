@@ -75,6 +75,18 @@ Configuração recomendada para Linux local:
 meson compile -C build -j $(nproc) -v Minecraft.Client
 ```
 
+Nota: O helper agora tenta criar e ativar um virtualenv local `.venv` no diretório do repositório antes de instalar `meson` e as dependências Python. Isso contorna problemas com ambientes Python gerenciados pelo sistema (PEP 668) e evita instalar pacotes globalmente. Se preferir preparar o ambiente manualmente, execute:
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install "meson>=1.7"
+./scripts/setup_build.sh
+```
+
+Atenção: o pacote `meson` fornecido pela sua distribuição (via `apt`) pode ser mais antigo (por exemplo 1.3.x) e não satisfazer o requisito mínimo do projeto (>= 1.7). Nesse caso, use o virtualenv acima ou `pipx` para instalar uma versão mais nova do `meson`.
+
 O helper acima ativa `ccache` automaticamente quando ele está instalado, exporta `CCACHE_BASEDIR` e `CCACHE_COMPILERCHECK=content`, escolhe `buildtype=debugoptimized` por padrão e usa `unity=on` no build local. Isso mantém o código principal em unity build e evita inflar desnecessariamente o número de unidades de compilação numa árvore recém-configurada.
 
 Se você quiser priorizar granularidade de rebuild ao editar um único `.cpp`, pode sobrescrever isso com `UNITY=subprojects ./scripts/setup_build.sh` ou passar `-Dunity=subprojects` explicitamente.

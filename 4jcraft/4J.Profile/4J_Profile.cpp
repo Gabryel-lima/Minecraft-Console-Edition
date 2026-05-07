@@ -59,9 +59,8 @@ void ensureFakeIdentity(int iPad) {
         return;
     }
 
-    std::snprintf(s_gamertags[iPad], sizeof(s_gamertags[iPad]), "Player%d",
-                  iPad + 1);
-    s_displayNames[iPad] = std::wstring(L"Player") + std::to_wstring(iPad + 1);
+    std::snprintf(s_gamertags[iPad], sizeof(s_gamertags[iPad]), "Player%d", iPad);
+    s_displayNames[iPad] = std::wstring(L"Player") + std::to_wstring(iPad);
 }
 
 void initialiseDefaultGameSettings(ProfileGameSettings* gameSettings) {

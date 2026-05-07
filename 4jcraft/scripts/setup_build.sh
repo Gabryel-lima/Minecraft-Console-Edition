@@ -109,9 +109,29 @@ install_linux_packages() {
   apt_get install -y "$@"
 }
 
+version_ge() {
+  if [ -z "$1" ] || [ -z "$2" ]; then
+    return 1
+  fi
+  if command -v sort >/dev/null 2>&1; then
+    smallest=$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1)
+    [ "$smallest" = "$2" ]
+  else
+    [ "$1" = "$2" ]
+  fi
+}
+
 install_python_requirements() {
+  REQUIRED_MESON_VERSION=1.7
+
+  # If meson exists and is new enough, nothing to do.
   if command -v meson >/dev/null 2>&1; then
-    return 0
+    current=$(meson --version 2>/dev/null || echo "")
+    if [ -n "$current" ] && version_ge "$current" "$REQUIRED_MESON_VERSION"; then
+      return 0
+    else
+      printf 'Found Meson version %s but need >= %s; will try to install/upgrade Meson in a virtualenv.\n' "$current" "$REQUIRED_MESON_VERSION" >&2
+    fi
   fi
 
   if ! command -v python3 >/dev/null 2>&1; then
@@ -122,17 +142,100 @@ install_python_requirements() {
     install_linux_packages python3-pip
   fi
 
-  if [ -n "${VIRTUAL_ENV:-}" ]; then
-    python3 -m pip install -r "$repo_root/requirements.txt"
-  else
-    python3 -m pip install --user -r "$repo_root/requirements.txt"
-    export PATH="$HOME/.local/bin:$PATH"
+  # Try to create and use a local virtualenv to avoid PEP 668/system pip issues.
+  # Locate a requirements file either in the repo or the parent folder.
+  req_file=""
+  if [ -f "$repo_root/requirements.txt" ]; then
+    req_file="$repo_root/requirements.txt"
+  elif [ -f "$repo_root/../requirements.txt" ]; then
+    req_file="$repo_root/../requirements.txt"
+  elif [ -f "$script_dir/../requirements.txt" ]; then
+    req_file="$script_dir/../requirements.txt"
   fi
 
-  if ! command -v meson >/dev/null 2>&1; then
-    printf 'meson is still missing after installing Python requirements.\n' >&2
-    exit 1
+  if [ -z "${VIRTUAL_ENV:-}" ]; then
+    if python3 -m venv "$repo_root/.venv" >/dev/null 2>&1; then
+      printf 'Created virtualenv at %s/.venv\n' "$repo_root" >&2
+    else
+      printf 'Creating virtualenv failed; attempting to install python3-venv and retry.\n' >&2
+      install_linux_packages python3-venv || true
+      if ! python3 -m venv "$repo_root/.venv" >/dev/null 2>&1; then
+        printf 'Unable to create virtualenv; will try other fallbacks.\n' >&2
+      fi
+    fi
+
+    if [ -f "$repo_root/.venv/bin/activate" ]; then
+      # Activate the virtualenv for this script's execution.
+      # shellcheck disable=SC1091
+      . "$repo_root/.venv/bin/activate"
+      python -m pip install --upgrade pip setuptools wheel >/dev/null 2>&1 || true
+
+      if [ -n "$req_file" ]; then
+        if ! python -m pip install -r "$req_file"; then
+          printf 'pip install failed inside the created virtualenv.\n' >&2
+          exit 1
+        fi
+      else
+        printf 'No requirements.txt found (checked %s, %s); installing Meson only in the venv.\n' "$repo_root/requirements.txt" "$repo_root/../requirements.txt" >&2
+      fi
+
+      # Ensure Meson of sufficient version is available in the venv.
+      if ! command -v meson >/dev/null 2>&1; then
+        python -m pip install "meson>=$REQUIRED_MESON_VERSION" || true
+      fi
+
+      if command -v meson >/dev/null 2>&1; then
+        current=$(meson --version 2>/dev/null || echo "")
+        if [ -n "$current" ] && version_ge "$current" "$REQUIRED_MESON_VERSION"; then
+          return 0
+        fi
+      fi
+    fi
+  else
+    # Already inside a virtualenv.
+    if ! python3 -m pip install -r "$repo_root/requirements.txt"; then
+      printf 'pip install failed inside the virtualenv.\n' >&2
+      exit 1
+    fi
+    if ! command -v meson >/dev/null 2>&1; then
+      python3 -m pip install "meson>=$REQUIRED_MESON_VERSION" || true
+    fi
+    if command -v meson >/dev/null 2>&1; then
+      current=$(meson --version 2>/dev/null || echo "")
+      if [ -n "$current" ] && version_ge "$current" "$REQUIRED_MESON_VERSION"; then
+        return 0
+      fi
+    fi
   fi
+
+  # Fallback: try user install (may be blocked by PEP 668).
+  if python3 -m pip install --user -r "$repo_root/requirements.txt" >/dev/null 2>&1; then
+    export PATH="$HOME/.local/bin:$PATH"
+    if command -v meson >/dev/null 2>&1; then
+      current=$(meson --version 2>/dev/null || echo "")
+      if [ -n "$current" ] && version_ge "$current" "$REQUIRED_MESON_VERSION"; then
+        return 0
+      fi
+    fi
+  fi
+
+  # Last resort: try installing meson via apt, but verify the version.
+  printf 'Attempting to install Meson using the system package manager (apt).\n' >&2
+  install_linux_packages meson || true
+
+  if command -v meson >/dev/null 2>&1; then
+    current=$(meson --version 2>/dev/null || echo "")
+    if [ -n "$current" ] && version_ge "$current" "$REQUIRED_MESON_VERSION"; then
+      return 0
+    else
+      printf 'System Meson is version %s which is older than required %s.\n' "$current" "$REQUIRED_MESON_VERSION" >&2
+      printf 'Please install Meson >= %s inside a virtualenv or via pipx (example: `python3 -m venv .venv && . .venv/bin/activate && python -m pip install meson>=%s`).\n' "$REQUIRED_MESON_VERSION" "$REQUIRED_MESON_VERSION" >&2
+      exit 1
+    fi
+  fi
+
+  printf 'meson is still missing after all attempts; please install Meson >= %s and re-run the script.\n' "$REQUIRED_MESON_VERSION" >&2
+  exit 1
 }
 
 missing_packages=
@@ -180,10 +283,16 @@ fi
 auto_native_file=
 if [ "$has_native" -eq 0 ]; then
   if command -v clang >/dev/null 2>&1 && command -v clang++ >/dev/null 2>&1; then
-    if [ "$cache_enabled" -eq 1 ]; then
-      auto_native_file="$repo_root/scripts/llvm_native_ccache.txt"
+    # Only use the llvm native file if an LLD-compatible linker is available,
+    # otherwise Meson may be invoked with -fuse-ld=lld which can fail.
+    if command -v lld >/dev/null 2>&1 || command -v ld.lld >/dev/null 2>&1; then
+      if [ "$cache_enabled" -eq 1 ]; then
+        auto_native_file="$repo_root/scripts/llvm_native_ccache.txt"
+      else
+        auto_native_file="$repo_root/scripts/llvm_native.txt"
+      fi
     else
-      auto_native_file="$repo_root/scripts/llvm_native.txt"
+      printf 'clang found but lld linker not found; skipping llvm native file to avoid -fuse-ld=lld.\n' >&2
     fi
   elif [ "$cache_enabled" -eq 1 ] && [ -z "${CC:-}" ] && [ -z "${CXX:-}" ]; then
     export CC='ccache cc'
@@ -239,4 +348,23 @@ if [ "$has_unity" -eq 0 ]; then
   set -- "$@" "-Dunity=$default_unity"
 fi
 
-exec meson "$@"
+# Run Meson and attempt a sensible fallback if a known subproject is missing.
+if meson "$@"; then
+  exit 0
+else
+  rc=$?
+  log="$builddir/meson-logs/meson-log.txt"
+  if [ -f "$log" ]; then
+    if grep -q 'https://github.com/4jcraft/shiggy.git' "$log" 2>/dev/null || grep -q 'subproject shiggy is buildable' "$log" 2>/dev/null; then
+      printf 'Meson setup failed due to missing subproject "shiggy"; retrying with -Dui_backend=java.\n' >&2
+      if meson setup "$builddir" --reconfigure -Dui_backend=java; then
+        printf 'Reconfigured build with ui_backend=java. Run `meson compile -C build -j $(nproc)` to build.\n' >&2
+        exit 0
+      else
+        printf 'Retry with ui_backend=java failed; see %s for details.\n' "$log" >&2
+        exit $?
+      fi
+    fi
+  fi
+  exit $rc
+fi
