@@ -21,7 +21,7 @@ const Options::Option Options::Option::options[17] = {
     Options::Option(L"options.sound", true, false),
     Options::Option(L"options.invertMouse", false, true),
     Options::Option(L"options.sensitivity", true, false),
-    Options::Option(L"options.renderDistance", false, false),
+    Options::Option(L"options.renderDistance", true, false),
     Options::Option(L"options.viewBobbing", false, true),
     Options::Option(L"options.anaglyph", false, true),
     Options::Option(L"options.advancedOpengl", false, true),
@@ -220,12 +220,15 @@ void Options::set(const Options::Option* item, float fVal) {
     if (item == Option::GAMMA) {
         gamma = fVal;
     }
+    if (item == Option::RENDER_DISTANCE) {
+        viewDistance = (int)(fVal * 3.0f + 0.5f);
+        if (viewDistance < 0) viewDistance = 0;
+        if (viewDistance > 3) viewDistance = 3;
+    }
 }
 
 void Options::toggle(const Options::Option* option, int dir) {
     if (option == Option::INVERT_MOUSE) invertYMouse = !invertYMouse;
-    if (option == Option::RENDER_DISTANCE)
-        viewDistance = (viewDistance + dir) & 3;
     if (option == Option::GUI_SCALE) guiScale = (guiScale + dir) & 3;
     if (option == Option::PARTICLES) particles = (particles + dir) % 3;
 
@@ -276,6 +279,7 @@ float Options::getProgressValue(const Options::Option* item) {
     if (item == Option::MUSIC) return music;
     if (item == Option::SOUND) return sound;
     if (item == Option::SENSITIVITY) return sensitivity;
+    if (item == Option::RENDER_DISTANCE) return viewDistance / 3.0f;
     return 0;
 }
 
@@ -327,6 +331,9 @@ std::wstring Options::getMessage(const Options::Option* item) {
             }
             return caption + L"+" + _toString<int>((int)(progressValue * 100)) +
                    L"%";
+        } else if (item == Option::RENDER_DISTANCE) {
+            return caption +
+                   language->getElement(RENDER_DISTANCE_NAMES[viewDistance]);
         } else {
             if (progressValue == 0) {
                 return caption + language->getElement(L"options.off");
@@ -339,9 +346,6 @@ std::wstring Options::getMessage(const Options::Option* item) {
             return caption + language->getElement(L"options.on");
         }
         return caption + language->getElement(L"options.off");
-    } else if (item == Option::RENDER_DISTANCE) {
-        return caption +
-               language->getElement(RENDER_DISTANCE_NAMES[viewDistance]);
     } else if (item == Option::DIFFICULTY) {
         return caption + language->getElement(DIFFICULTY_NAMES[difficulty]);
     } else if (item == Option::GUI_SCALE) {
