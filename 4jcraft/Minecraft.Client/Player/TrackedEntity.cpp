@@ -542,6 +542,14 @@ TrackedEntity::eVisibility TrackedEntity::isVisible(
 
 void TrackedEntity::updatePlayer(EntityTracker* tracker,
                                  std::shared_ptr<ServerPlayer> sp) {
+    // 4jcraft/CuriousMob: level->players pode conter um Player que não é
+    // ServerPlayer (ex.: BotPlayer, sem PlayerConnection/rede) - em
+    // particular, Level::addEntity() põe a entidade em level->players ANTES
+    // de disparar entityAdded()/EntityTracker::addEntity(), então mesmo o
+    // próprio bot sendo registrado aqui já aparece nesse vetor nesse
+    // instante. O dynamic_pointer_cast<ServerPlayer> do chamador (ex.:
+    // updatePlayers()) falha nesse caso e chega aqui como nullptr.
+    if (sp == nullptr) return;
     if (sp == e) return;
 
     eVisibility visibility = this->isVisible(tracker, sp);
@@ -707,6 +715,14 @@ std::shared_ptr<Packet> TrackedEntity::getAddEntityPacket() {
         // degrees.
         return std::shared_ptr<AddPlayerPacket>(new AddPlayerPacket(
             player, xuid, OnlineXuid, xp, yp, zp, yRotp, xRotp, yHeadRotp));
+    } else if (e->instanceof(eTYPE_PLAYER)) {
+        // 4jcraft/CuriousMob: Player não-ServerPlayer (ex.: BotPlayer). O
+        // construtor de AddPlayerPacket só usa métodos genéricos de Player
+        // (nome, inventário, skin/cape, etc.), então funciona igual - só não
+        // tem XUID de conta online porque não veio de uma conexão de rede.
+        return std::shared_ptr<AddPlayerPacket>(new AddPlayerPacket(
+            std::dynamic_pointer_cast<Player>(e), INVALID_XUID, INVALID_XUID,
+            xp, yp, zp, yRotp, xRotp, yHeadRotp));
     } else if (e->instanceof(eTYPE_MINECART)) {
         std::shared_ptr<Minecart> minecart =
             std::dynamic_pointer_cast<Minecart>(e);

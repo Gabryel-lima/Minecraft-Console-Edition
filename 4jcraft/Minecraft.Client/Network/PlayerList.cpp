@@ -1296,7 +1296,17 @@ void PlayerList::broadcast(std::shared_ptr<Player> except, double x, double y,
     // need to go to that machine either
     std::vector<std::shared_ptr<ServerPlayer> > sentTo;
     if (except != nullptr) {
-        sentTo.push_back(std::dynamic_pointer_cast<ServerPlayer>(except));
+        // 4jcraft/CuriousMob: `except` pode ser um Player que não é um
+        // ServerPlayer de rede (ex.: BotPlayer, que não tem PlayerConnection).
+        // O cast falha (retorna nullptr) nesse caso - sem esse check, um
+        // nullptr entrava em sentTo e o loop abaixo desreferenciava
+        // `player2->connection` de um ponteiro nulo (crash toda vez que o bot
+        // emite um som, ex. passos).
+        std::shared_ptr<ServerPlayer> exceptAsServerPlayer =
+            std::dynamic_pointer_cast<ServerPlayer>(except);
+        if (exceptAsServerPlayer != nullptr) {
+            sentTo.push_back(exceptAsServerPlayer);
+        }
     }
 
     for (unsigned int i = 0; i < players.size(); i++) {

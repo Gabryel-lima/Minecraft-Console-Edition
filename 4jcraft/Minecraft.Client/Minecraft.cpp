@@ -12,7 +12,6 @@
 // para Minecraft::tick() via essas flags.
 static bool s_curiousMobPendingSpawn = false;
 static bool s_curiousMobSpawned = false;
-static std::shared_ptr<BotPlayer> s_curiousMobBot = nullptr;
 static bool s_curiousMobTeleportKeyWasDown = false;
 #include "GameState/GameMode.h"
 #include "UI/Screens/PauseScreen.h"
@@ -2022,35 +2021,41 @@ void Minecraft::tick(bool bFirst, bool bUpdateTextures) {
         if (s_curiousMobSpawnTick < 0) s_curiousMobSpawnTick = ticks + 20;
         if (ticks >= s_curiousMobSpawnTick) {
             s_curiousMobSpawned = true;
-            s_curiousMobBot =
-                std::shared_ptr<BotPlayer>(new BotPlayer(level, L"CuriousMob"));
-            s_curiousMobBot->moveTo(player->x + 2, player->y, player->z, 0, 0);
-            bool addedOk = level->addEntity(s_curiousMobBot);
-            fprintf(stderr,
-                    "[CuriousMob] spawn: player=(%.2f,%.2f,%.2f) "
-                    "bot=(%.2f,%.2f,%.2f) addEntity=%s\n",
-                    player->x, player->y, player->z, s_curiousMobBot->x,
-                    s_curiousMobBot->y, s_curiousMobBot->z,
-                    addedOk ? "ok" : "FALHOU");
+
+            // O bot precisa viver na ServerLevel (simulação autoritativa),
+            // não em `level` (a MultiPlayerLevel, que é só o espelho
+            // client-side usado para renderizar) - senão fica invisível
+            // para a IA dos mobs e imune a dano de verdade. Mas
+            // Minecraft::tick() roda na thread do cliente, e a ServerLevel
+            // só pode ser mexida pela "Minecraft Server thread" (que a
+            // tickeia continuamente); chamar addEntity() direto daqui
+            // corrompe as listas de entidade dela e derruba o jogo. Por
+            // isso só registramos o pedido aqui - quem cria o bot de
+            // verdade é CuriousMobTickPendingSpawn(), chamado de dentro de
+            // MinecraftServer::tick() (ver MinecraftServer.cpp).
+            CuriousMobRequestSpawn(player->dimension, player->x + 2,
+                                   player->y, player->z);
         }
     }
 
     // CuriousMob - tecla de debug (F4) para teleportar o jogador local até
     // a posição do bot. F sozinho já é a tecla de interagir/usar do jogo
     // (ver 4J.Input/4J_Input.cpp), por isso usamos F4, que está livre.
-    if (s_curiousMobBot != nullptr && player != nullptr && screen == nullptr) {
-        const Uint8* keyState = SDL_GetKeyboardState(nullptr);
-        bool teleportKeyDown = keyState[SDL_SCANCODE_F4] != 0;
-        if (teleportKeyDown && !s_curiousMobTeleportKeyWasDown) {
-            player->moveTo(s_curiousMobBot->x, s_curiousMobBot->y,
-                            s_curiousMobBot->z, player->yRot, player->xRot);
-            fprintf(stderr,
-                    "[CuriousMob] F4: jogador teleportado para "
-                    "(%.2f,%.2f,%.2f)\n",
-                    s_curiousMobBot->x, s_curiousMobBot->y,
-                    s_curiousMobBot->z);
+    if (player != nullptr && screen == nullptr) {
+        std::shared_ptr<BotPlayer> curiousMobBot = CuriousMobGetBot();
+        if (curiousMobBot != nullptr) {
+            const Uint8* keyState = SDL_GetKeyboardState(nullptr);
+            bool teleportKeyDown = keyState[SDL_SCANCODE_F4] != 0;
+            if (teleportKeyDown && !s_curiousMobTeleportKeyWasDown) {
+                player->moveTo(curiousMobBot->x, curiousMobBot->y,
+                               curiousMobBot->z, player->yRot, player->xRot);
+                fprintf(stderr,
+                        "[CuriousMob] F4: jogador teleportado para "
+                        "(%.2f,%.2f,%.2f)\n",
+                        curiousMobBot->x, curiousMobBot->y, curiousMobBot->z);
+            }
+            s_curiousMobTeleportKeyWasDown = teleportKeyDown;
         }
-        s_curiousMobTeleportKeyWasDown = teleportKeyDown;
     }
 
     // Tick the opacity timer (to display the interface at default opacity for a

@@ -17,6 +17,7 @@
 #include "Level/ServerLevel.h"
 #include "Level/ServerLevelListener.h"
 #include "GameState/Settings.h"
+#include "Mods/CuriousMob/BotPlayer.h"
 #include "../Minecraft.World/Commands/Command.h"
 #include "../Minecraft.World/Util/AABB.h"
 #include "../Minecraft.World/Util/Vec3.h"
@@ -1490,6 +1491,11 @@ void MinecraftServer::tick() {
             // #endif// 0
         }
     }
+
+    // CuriousMob (mods/CuriousMob) - só a thread do servidor pode criar
+    // entidades numa ServerLevel; ver comentário em CuriousMobRequestSpawn.
+    CuriousMobTickPendingSpawn(this);
+
     Entity::tickExtraWandering();  // 4J added
 
     PIXBeginNamedEvent(0, "Connection tick");

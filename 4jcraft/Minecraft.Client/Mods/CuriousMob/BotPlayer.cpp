@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <mutex>
 
 #include "../../../Minecraft.World/Blocks/Tile.h"
 #include "../../../Minecraft.World/Containers/AbstractContainerMenu.h"
@@ -12,10 +13,15 @@
 #include "../../../Minecraft.World/Entities/LivingEntity.h"
 #include "../../../Minecraft.World/Items/Item.h"
 #include "../../../Minecraft.World/Items/ItemInstance.h"
+#include "../../../Minecraft.World/Level/GameRules.h"
 #include "../../../Minecraft.World/Level/Level.h"
+#include "../../../Minecraft.World/Player/FoodData.h"
 #include "../../../Minecraft.World/Util/AABB.h"
 #include "../../../Minecraft.World/Util/HitResult.h"
+#include "../../../Minecraft.World/Util/Pos.h"
 #include "../../../Minecraft.World/Util/Vec3.h"
+#include "../../Level/ServerLevel.h"
+#include "../../MinecraftServer.h"
 
 BotPlayer::BotPlayer(Level* level, const std::wstring& name)
     : Player(level, name), controller(nullptr) {
@@ -24,6 +30,14 @@ BotPlayer::BotPlayer(Level* level, const std::wstring& name)
     // survival por padrão. Fixamos explicitamente aqui para não depender
     // desse acaso: o bot deve continuar em sobrevivência mesmo que o mundo
     // seja criado/aberto em modo criativo.
+    // Convenção de posição do lado servidor (ver setDefaultHeadHeight() em
+    // BotPlayer.h): `y` na altura dos pés, não dos olhos. O construtor de
+    // Player já rodou um moveTo() com o 1.62 herdado, mas quem posiciona o bot
+    // de verdade é o moveTo() de CuriousMobTickPendingSpawn(), logo depois
+    // desta linha - igual ao ServerPlayer, que também zera o offset antes do
+    // seu moveTo().
+    heightOffset = 0;
+
     abilities.invulnerable = false;
     abilities.flying = false;
     abilities.mayfly = false;
@@ -44,6 +58,36 @@ BotPlayer::BotPlayer(Level* level, const std::wstring& name)
 BotPlayer::~BotPlayer() { delete controller; }
 
 void BotPlayer::tick() {
+    // Espelha o "Respawn" que um jogador real manda por packet depois da
+    // tela de morte: sem isso, die() (chamado de dentro de hurt(), antes
+    // deste tick) já dropou o inventário e zerou a vida, mas o bot ficava
+    // parado ali para sempre, porque nada equivalente ao
+    // PERFORM_RESPAWN/PlayerList::respawn existe pra um Player sem
+    // PlayerConnection.
+    if (getHealth() <= 0) {
+        fprintf(stderr,
+                "[CuriousMob] bot morreu (health=%.2f) em (%.2f,%.2f,%.2f), "
+                "respawnando\n",
+                getHealth(), x, y, z);
+        respawnAfterDeath();
+        return;
+    }
+
+    // DIAGNÓSTICO TEMPORÁRIO - remover quando o comportamento estiver
+    // confirmado. Só loga quando o bot está ferido (a situação de interesse),
+    // no máximo ~1x por segundo, pra não inundar o console.
+    static int s_curiousMobDiagCounter = 0;
+    if (getHealth() < getMaxHealth() && ++s_curiousMobDiagCounter % 20 == 0) {
+        FoodData* food = getFoodData();
+        fprintf(stderr,
+                "[CuriousMob][diag] health=%.2f/%.2f food=%d sat=%.1f "
+                "onGround=%d y=%.2f invulnerableTime=%d\n",
+                getHealth(), getMaxHealth(),
+                food != nullptr ? food->getFoodLevel() : -1,
+                food != nullptr ? food->getSaturationLevel() : -1.0f, onGround,
+                y, invulnerableTime);
+    }
+
     // Diferente de um LocalPlayer real (cujo travel()/jumpFromGround() são
     // disparados externamente pelo loop de input do jogador local), o
     // BotPlayer roda no lado servidor (isEffectiveAi() == true para um
@@ -56,6 +100,51 @@ void BotPlayer::tick() {
     if (controller != nullptr) controller->tick();
 
     Player::tick();
+}
+
+void BotPlayer::respawnAfterDeath() {
+    Pos* bed = getRespawnPosition();  // dono é o próprio Player, não deletar.
+    Pos* bedStandUp =
+        bed != nullptr
+            ? checkBedValidRespawnPosition(level, bed, isRespawnForced())
+            : nullptr;
+
+    if (bedStandUp != nullptr) {
+        moveTo(bedStandUp->x + 0.5, bedStandUp->y + 0.1, bedStandUp->z + 0.5,
+               0, 0);
+    } else {
+        Pos* worldSpawn = level->getSharedSpawnPos();
+        moveTo(worldSpawn->x + 0.5, worldSpawn->y + 0.1, worldSpawn->z + 0.5,
+               0, 0);
+        delete worldSpawn;
+        if (bed != nullptr) {
+            // Cama não é mais válida (destruída/bloqueada) - mesmo aviso que
+            // o jogador real recebe (GameEventPacket::NO_RESPAWN_BED_AVAILABLE).
+            setRespawnPosition(nullptr, false);
+        }
+    }
+
+    setSize(0.6f, 1.8f);
+    setDefaultHeadHeight();
+    setHealth(getMaxHealth());
+    foodData = FoodData();
+    clearFire();
+    fallDistance = 0;
+    dead = false;
+
+    // Player::die() já esvaziou o inventário (dropAll) quando keepInventory
+    // está desligado, mas não mexe em XP - isso normalmente é perdido porque
+    // o respawn de verdade recria o Player do zero (PlayerList::respawn) e só
+    // copia o XP antigo se keepInventory estiver ligado (Player::restoreFrom).
+    // Replicamos a mesma regra aqui.
+    if (!level->getGameRules()->getBoolean(GameRules::RULE_KEEPINVENTORY)) {
+        experienceLevel = 0;
+        totalExperience = 0;
+        experienceProgress = 0;
+    }
+
+    fprintf(stderr, "[CuriousMob] bot respawnou em (%.2f,%.2f,%.2f)\n", x, y,
+            z);
 }
 
 std::shared_ptr<Player> BotPlayer::selfAsPlayer() {
@@ -397,4 +486,87 @@ std::shared_ptr<Entity> BotPlayer::getNearestEntity(double radius) {
         }
     }
     return best;
+}
+
+// --- Coordenação com a "Minecraft Server thread" ---------------------------
+
+namespace {
+std::mutex g_curiousMobSpawnMutex;
+bool g_curiousMobSpawnRequested = false;
+int g_curiousMobSpawnDimension = 0;
+double g_curiousMobSpawnX = 0, g_curiousMobSpawnY = 0, g_curiousMobSpawnZ = 0;
+std::shared_ptr<BotPlayer> g_curiousMobBot;
+}  // namespace
+
+void CuriousMobRequestSpawn(int dimension, double x, double y, double z) {
+    std::lock_guard<std::mutex> lock(g_curiousMobSpawnMutex);
+    if (g_curiousMobBot != nullptr) return;  // já spawnado.
+    g_curiousMobSpawnRequested = true;
+    g_curiousMobSpawnDimension = dimension;
+    g_curiousMobSpawnX = x;
+    g_curiousMobSpawnY = y;
+    g_curiousMobSpawnZ = z;
+}
+
+// Chamado de dentro de MinecraftServer::tick() - já estamos na thread do
+// servidor aqui, então é seguro construir o BotPlayer contra a ServerLevel e
+// chamar addEntity().
+void CuriousMobTickPendingSpawn(MinecraftServer* server) {
+    bool requested;
+    int dimension;
+    double x, y, z;
+    {
+        std::lock_guard<std::mutex> lock(g_curiousMobSpawnMutex);
+        requested = g_curiousMobSpawnRequested;
+        if (!requested) return;
+        g_curiousMobSpawnRequested = false;
+        dimension = g_curiousMobSpawnDimension;
+        x = g_curiousMobSpawnX;
+        y = g_curiousMobSpawnY;
+        z = g_curiousMobSpawnZ;
+    }
+
+    ServerLevel* level = server->getLevel(dimension);
+    if (level == nullptr) {
+        fprintf(stderr,
+                "[CuriousMob] spawn abortado: ServerLevel nula para "
+                "dimension=%d\n",
+                dimension);
+        return;
+    }
+
+    std::shared_ptr<BotPlayer> bot =
+        std::shared_ptr<BotPlayer>(new BotPlayer(level, L"CuriousMob"));
+    bot->moveTo(x, y, z, 0, 0);
+    bool addedOk = level->addEntity(bot);
+
+    // Level::addEntity() empurra automaticamente qualquer entidade
+    // instanceof(eTYPE_PLAYER) para level->players - só que boa parte do
+    // código que itera esse vetor assume que todo mundo lá é um
+    // ServerPlayer de rede de verdade (dynamic_pointer_cast<ServerPlayer>
+    // sem checar null antes de usar, ex.: EntityTracker::tick() faz
+    // `player->isAlive()` direto no resultado do cast). Pra um BotPlayer
+    // isso vira um shared_ptr nulo e derruba o jogo no tick seguinte do
+    // servidor. O bot continua sendo uma entidade normal do mundo (chunks/
+    // entities, onde a IA dos mobs realmente procura alvo) - só não pode
+    // fingir ser um "jogador conectado" nesse vetor específico.
+    if (addedOk) {
+        auto& levelPlayers = level->players;
+        levelPlayers.erase(
+            std::remove(levelPlayers.begin(), levelPlayers.end(), bot),
+            levelPlayers.end());
+    }
+
+    fprintf(stderr,
+            "[CuriousMob] spawn (thread do servidor): bot=(%.2f,%.2f,%.2f) "
+            "addEntity=%s\n",
+            bot->x, bot->y, bot->z, addedOk ? "ok" : "FALHOU");
+
+    std::lock_guard<std::mutex> lock(g_curiousMobSpawnMutex);
+    g_curiousMobBot = bot;
+}
+
+std::shared_ptr<BotPlayer> CuriousMobGetBot() {
+    std::lock_guard<std::mutex> lock(g_curiousMobSpawnMutex);
+    return g_curiousMobBot;
 }

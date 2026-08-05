@@ -46,6 +46,7 @@
 class Level;
 class Entity;
 class CuriousMobController;
+class MinecraftServer;
 
 // Resultado da mira do bot: o análogo do `Minecraft::hitResult` do jogador.
 struct BotTarget {
@@ -74,6 +75,17 @@ public:
     virtual ~BotPlayer();
 
     virtual void tick();
+
+    // Player usa heightOffset = 1.62 (o `y` é a altura dos olhos), mas todo o
+    // lado servidor/rede assume a convenção do ServerPlayer: heightOffset = 0,
+    // com `y` na altura dos pés. O RemotePlayer (espelho client-side que
+    // desenha o bot na tela) também assume 0, então herdar o 1.62 do Player
+    // fazia o cliente renderizar o bot 1,62 bloco acima do chão ("voando") e
+    // os mobs calcularem distanceToSqr() até um ponto alto demais. Espelhamos
+    // ServerPlayer::setDefaultHeadHeight() - é preciso ser override, e não só
+    // uma atribuição no construtor, porque Player::die() muda o heightOffset
+    // para 0.1 e o respawn o restaura chamando este método.
+    virtual void setDefaultHeadHeight() { heightOffset = 0; }
 
     // CommandSender: o bot nunca recebe EGameCommand pela ponte, então não
     // precisa de permissão para nenhum.
@@ -127,5 +139,34 @@ private:
     // Sequência completa de destruição de bloco em sobrevivência.
     bool destroyTileAt(int x, int y, int z);
 
+    // Chamado do tick() quando a vida chega a 0: repete o que o cliente faz
+    // ao clicar em "Respawn" na tela de morte (PlayerConnection::
+    // handleClientCommand -> PlayerList::respawn), mas sem a parte de rede
+    // e sem recriar a entidade — o bot não tem PlayerConnection, então
+    // fazemos a versão mínima: vida/fome/fogo/hitbox de volta ao normal e
+    // teleporte pra cama (se ainda válida) ou pro spawn do mundo.
+    void respawnAfterDeath();
+
     std::shared_ptr<Player> selfAsPlayer();
 };
+
+// --- Coordenação com a "Minecraft Server thread" ----------------------------
+//
+// A ServerLevel (onde o bot precisa viver para ser visto por mobs e sofrer
+// dano de verdade) só pode ser mexida a partir da thread do servidor: é ela
+// quem tickeia a ServerLevel e itera as listas de entidade continuamente.
+// Minecraft::tick() roda na thread do cliente, então construir o BotPlayer e
+// chamar ServerLevel::addEntity() direto de lá corrompe essas listas (o
+// servidor pode estar no meio de uma iteração/tick ao mesmo tempo) e derruba
+// o jogo.
+//
+// Por isso o spawn vira um pedido: CuriousMobRequestSpawn() (thread do
+// cliente) só grava a posição desejada atrás de um mutex; quem de fato cria
+// e adiciona o BotPlayer é CuriousMobTickPendingSpawn() (thread do
+// servidor), chamado de dentro de MinecraftServer::tick(). O ponteiro do bot
+// resultante fica protegido pelo mesmo mutex e só é exposto de volta pra
+// thread do cliente via CuriousMobGetBot() (cópia do shared_ptr, não
+// acesso direto aos campos do bot).
+void CuriousMobRequestSpawn(int dimension, double x, double y, double z);
+void CuriousMobTickPendingSpawn(MinecraftServer* server);
+std::shared_ptr<BotPlayer> CuriousMobGetBot();

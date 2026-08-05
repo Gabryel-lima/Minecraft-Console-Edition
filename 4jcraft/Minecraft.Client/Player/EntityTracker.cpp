@@ -35,6 +35,13 @@ void EntityTracker::addEntity(std::shared_ptr<Entity> e) {
                 (*it)->updatePlayer(this, player);
             }
         }
+    } else if (e->instanceof(eTYPE_PLAYER)) {
+        // 4jcraft/CuriousMob: Player não-ServerPlayer (ex.: BotPlayer, sem
+        // PlayerConnection/rede). Mesmo alcance/intervalo do ramo acima, mas
+        // sem o loop de updatePlayer() por entidade já trackada - aquilo
+        // serve só pra sincronizar o estado do mundo pra um cliente de rede
+        // que acabou de conectar, e o bot não tem conexão pra receber nada.
+        addEntity(e, 32 * 16, 2);
     } else if (e->instanceof(eTYPE_FISHINGHOOK))
         addEntity(e, 16 * 4, 5, true);
     else if (e->instanceof(eTYPE_SMALL_FIREBALL))

@@ -723,21 +723,13 @@ static inline bool QueryPerformanceCounter(LARGE_INTEGER* lpPerformanceCount) {
 static inline void OutputDebugStringA(const char* lpOutputString) {
     if (!lpOutputString) return;
 
-#if defined(_DEBUG) || defined(DEBUG) || defined(_DEBUG_MENUS_ENABLED)
-    static int s_debugCharCount = 0;
-    static constexpr int kDebugCharsBeforeClear = 50;
-
-    s_debugCharCount += (int)strlen(lpOutputString);
-
-    while (s_debugCharCount >= kDebugCharsBeforeClear) {
-        if (isatty(fileno(stderr))) {
-            // ANSI clear-screen + cursor-home to keep debug spam bounded.
-            fputs("\x1b[2J\x1b[H", stderr);
-        }
-        s_debugCharCount -= kDebugCharsBeforeClear;
-    }
-#endif
-
+    // Nota: aqui existia um "limitador de spam" que emitia um clear-screen
+    // ANSI (\x1b[2J\x1b[H) a cada 50 caracteres impressos. Como uma única
+    // linha de log costuma passar de 50 caracteres, isso limpava a tela a
+    // cada linha - destruindo o histórico e enchendo o texto copiado de
+    // sequências de escape (que aparecem como linhas em branco/espaços).
+    // Limitar spam é trabalho de quem chama DebugPrintf, não do backend de
+    // saída; aqui apenas escrevemos a string.
     fputs(lpOutputString, stderr);
 }
 
