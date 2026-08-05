@@ -1122,6 +1122,39 @@ void Minecraft::run_middle() {
                     }
                 }
 
+                // 4jcraft: simplified autosave path, independent of the
+                // console "full version"/DLC gating above (that gate is
+                // never satisfied on the PC/Linux port, so autosave would
+                // otherwise never fire). Interval is configurable per-world
+                // via options->autosaveIntervalSeconds (options.txt, which
+                // already lives under each world's own working directory).
+                {
+                    static Level* lastAutosaveLevel = nullptr;
+                    static int64_t lastAutosaveTime = 0;
+
+                    if (level != nullptr && g_NetworkManager.IsHost() &&
+                        !StorageManager.GetSaveDisabled() &&
+                        !ProfileManager.IsFullVersion()) {
+                        int64_t now = System::nanoTime();
+                        if (level != lastAutosaveLevel) {
+                            lastAutosaveLevel = level;
+                            lastAutosaveTime = now;
+                        }
+
+                        int intervalSeconds = options->autosaveIntervalSeconds;
+                        if (intervalSeconds > 0 &&
+                            (now - lastAutosaveTime) >=
+                                (int64_t)intervalSeconds * 1000000000LL) {
+                            lastAutosaveTime = now;
+                            app.SetXuiServerAction(
+                                ProfileManager.GetPrimaryPad(),
+                                eXuiServerAction_AutoSaveGame);
+                        }
+                    } else {
+                        lastAutosaveLevel = nullptr;
+                    }
+                }
+
                 // 4J-PB - Once we're in the level, check if the players have
                 // the level in their banned list and ask if they want to play
                 // it

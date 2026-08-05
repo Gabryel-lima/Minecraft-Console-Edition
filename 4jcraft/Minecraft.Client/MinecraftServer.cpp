@@ -894,11 +894,13 @@ void MinecraftServer::stopServer(bool didInit) {
     // and another player signs in before dismissing the dash
     if ((m_bPrimaryPlayerSignedOut == false) &&
         ProfileManager.IsSignedIn(ProfileManager.GetPrimaryPad())) {
-        // if trial version or saving is disabled, then don't save anything.
+        // if saving is disabled, then don't save anything.
         // Also don't save anything if we didn't actually get through the server
         // initialisation.
-        if (m_saveOnExit && ProfileManager.IsFullVersion() &&
-            (!StorageManager.GetSaveDisabled()) && didInit) {
+        // 4jcraft: dropped the ProfileManager.IsFullVersion() requirement -
+        // that's a console trial/DLC gate that is never satisfied on this
+        // port, which meant the world was never saved on exit to menu.
+        if (m_saveOnExit && (!StorageManager.GetSaveDisabled()) && didInit) {
             if (players != nullptr) {
                 players->saveAll(Minecraft::GetInstance()->progressRenderer,
                                  true);

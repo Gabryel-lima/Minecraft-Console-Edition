@@ -36,6 +36,11 @@ public:
     virtual void writeUnsignedShort(unsigned short a);
     virtual void writeChar(wchar_t a);
     virtual void writeChars(const std::wstring& a);
+    // 4jcraft: writes one UTF-8 byte per ASCII char with no length prefix -
+    // matches what InputStreamReader/readUTFChar expect when decoding plain
+    // text files (unlike writeChars, which writes 2 bytes per char and is
+    // only meant to be paired with a matching 2-byte-per-char reader).
+    void writeTextLine(const std::wstring& a);
     virtual void writeBoolean(bool b);
     virtual void writeUTF(const std::wstring& a);
     virtual void writePlayerUID(PlayerUID player);

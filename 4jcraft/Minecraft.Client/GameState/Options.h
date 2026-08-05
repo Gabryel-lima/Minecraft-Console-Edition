@@ -99,6 +99,8 @@ public:
     bool thirdPersonView;
     bool renderDebug;
     std::wstring lastMpIp;
+    int autosaveIntervalSeconds;  // 4jcraft: per-world autosave interval,
+                                   // configurable in-menu; 0 disables
 
     bool isFlying;
     bool smoothCamera;

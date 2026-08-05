@@ -6,6 +6,9 @@ class OptionsScreen : public Screen {
 private:
     static const int CONTROLS_BUTTON_ID = 100;
     static const int VIDEO_BUTTON_ID = 101;
+    static const int AUTOSAVE_BUTTON_ID = 102;
+
+    static std::wstring getAutosaveLabel(int seconds);
     Screen* lastScreen;
 
 protected:

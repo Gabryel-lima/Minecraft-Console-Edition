@@ -2577,7 +2577,14 @@ void CMinecraftApp::HandleXuiActions(void) {
                     // queued with LIVE
                     // InputManager.CancelAllVerifyInProgress();
 
-                    if (ProfileManager.IsFullVersion()) {
+                    // 4jcraft: this used to branch on
+                    // ProfileManager.IsFullVersion(), which is never true on
+                    // this port, and otherwise showed a "buy the full game to
+                    // save" trial upsell dialog instead of actually exiting -
+                    // meaning Save & Quit to Title never reached the real
+                    // save/exit path at all. There's no trial edition here,
+                    // so always take the real exit path.
+                    {
                         // In a split screen, only the primary player actually
                         // quits the game, others just remove their players
                         if (i != ProfileManager.GetPrimaryPad()) {
@@ -2593,15 +2600,6 @@ void CMinecraftApp::HandleXuiActions(void) {
                         // flag to capture the save thumbnail
                         SetAction(i, eAppAction_ExitWorldCapturedThumbnail,
                                   param);
-                    } else {
-                        // ask the player if they would like to upgrade, or
-                        // they'll lose the level
-                        unsigned int uiIDA[2];
-                        uiIDA[0] = IDS_CONFIRM_OK;
-                        uiIDA[1] = IDS_CONFIRM_CANCEL;
-                        ui.RequestErrorMessage(
-                            IDS_UNLOCK_TITLE, IDS_UNLOCK_TOSAVE_TEXT, uiIDA, 2,
-                            i, &CMinecraftApp::UnlockFullExitReturned, this);
                     }
 
                     // Change the presence info

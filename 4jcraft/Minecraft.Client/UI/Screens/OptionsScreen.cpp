@@ -48,8 +48,17 @@ void OptionsScreen::init() {
     buttons.push_back(new Button(CONTROLS_BUTTON_ID, width / 2 - 100,
                                  height / 6 + 24 * 5 + 12,
                                  language->getElement(L"options.controls")));
-    buttons.push_back(new Button(200, width / 2 - 100, height / 6 + 24 * 7,
+    buttons.push_back(new Button(AUTOSAVE_BUTTON_ID, width / 2 - 100,
+                                 height / 6 + 24 * 6 + 12,
+                                 getAutosaveLabel(options->autosaveIntervalSeconds)));
+
+    buttons.push_back(new Button(200, width / 2 - 100, height / 6 + 24 * 7 + 24,
                                  language->getElement(L"gui.done")));
+}
+
+std::wstring OptionsScreen::getAutosaveLabel(int seconds) {
+    if (seconds <= 0) return L"Autosave: OFF";
+    return L"Autosave: " + _toString<int>(seconds / 60) + L" min";
 }
 
 void OptionsScreen::buttonClicked(Button* button) {
@@ -65,6 +74,21 @@ void OptionsScreen::buttonClicked(Button* button) {
     if (button->id == CONTROLS_BUTTON_ID) {
         minecraft->options->save();
         minecraft->setScreen(new ControlsScreen(this, options));
+    }
+    if (button->id == AUTOSAVE_BUTTON_ID) {
+        static const int steps[] = {0, 60, 120, 300, 600, 900, 1800};
+        static const int stepCount = sizeof(steps) / sizeof(steps[0]);
+        int current = options->autosaveIntervalSeconds;
+        int nextIndex = 0;
+        for (int i = 0; i < stepCount; i++) {
+            if (steps[i] == current) {
+                nextIndex = (i + 1) % stepCount;
+                break;
+            }
+        }
+        options->autosaveIntervalSeconds = steps[nextIndex];
+        button->msg = getAutosaveLabel(options->autosaveIntervalSeconds);
+        minecraft->options->save();
     }
     if (button->id == 200) {
         minecraft->options->save();

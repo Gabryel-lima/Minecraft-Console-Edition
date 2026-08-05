@@ -163,6 +163,7 @@ void Options::init() {
     thirdPersonView = false;
     renderDebug = false;
     lastMpIp = L"";
+    autosaveIntervalSeconds = 300;
 
     isFlying = false;
     smoothCamera = false;
@@ -179,6 +180,7 @@ Options::Options(Minecraft* minecraft, File workingDirectory) {
     init();
     this->minecraft = minecraft;
     optionsFile = File(workingDirectory, L"options.txt");
+    load();
 }
 
 Options::Options() { init(); }
@@ -391,7 +393,7 @@ void Options::load() {
             cmds[1] = L"";
         } else {
             cmds[0] = line.substr(0, splitpos);
-            cmds[1] = line.substr(splitpos, line.length() - splitpos);
+            cmds[1] = line.substr(splitpos + 1, line.length() - splitpos - 1);
         }
 
         if (cmds[0] == L"music") music = readFloat(cmds[1]);
@@ -414,6 +416,8 @@ void Options::load() {
         if (cmds[0] == L"clouds") renderClouds = cmds[1] == L"true";
         if (cmds[0] == L"skin") skin = cmds[1];
         if (cmds[0] == L"lastServer") lastMpIp = cmds[1];
+        if (cmds[0] == L"autosaveInterval")
+            autosaveIntervalSeconds = _fromString<int>(cmds[1]);
 
         for (int i = 0; i < keyMappings_length; i++) {
             if (cmds[0] == (L"key_" + keyMappings[i]->name)) {
@@ -448,34 +452,39 @@ void Options::save() {
     DataOutputStream dos = DataOutputStream(&fos);
     //        PrintWriter pw = new PrintWriter(new FileWriter(optionsFile));
 
-    dos.writeChars(L"music:" + _toString<float>(music) + L"\n");
-    dos.writeChars(L"sound:" + _toString<float>(sound) + L"\n");
-    dos.writeChars(L"invertYMouse:" +
+    dos.writeTextLine(L"music:" + _toString<float>(music) + L"\n");
+    dos.writeTextLine(L"sound:" + _toString<float>(sound) + L"\n");
+    dos.writeTextLine(L"invertYMouse:" +
                    std::wstring(invertYMouse ? L"true" : L"false") + L"\n");
-    dos.writeChars(L"mouseSensitivity:" + _toString<float>(sensitivity));
-    dos.writeChars(L"fov:" + _toString<float>(fov));
-    dos.writeChars(L"gamma:" + _toString<float>(gamma));
-    dos.writeChars(L"viewDistance:" + _toString<int>(viewDistance));
-    dos.writeChars(L"guiScale:" + _toString<int>(guiScale));
-    dos.writeChars(L"particles:" + _toString<int>(particles));
-    dos.writeChars(L"bobView:" + std::wstring(bobView ? L"true" : L"false"));
-    dos.writeChars(L"anaglyph3d:" +
-                   std::wstring(anaglyph3d ? L"true" : L"false"));
-    dos.writeChars(L"advancedOpengl:" +
-                   std::wstring(advancedOpengl ? L"true" : L"false"));
-    dos.writeChars(L"fpsLimit:" + _toString<int>(framerateLimit));
-    dos.writeChars(L"difficulty:" + _toString<int>(difficulty));
-    dos.writeChars(L"fancyGraphics:" +
-                   std::wstring(fancyGraphics ? L"true" : L"false"));
-    dos.writeChars(L"ao:" +
-                   std::wstring(ambientOcclusion ? L"true" : L"false"));
-    dos.writeChars(L"clouds:" + _toString<bool>(renderClouds));
-    dos.writeChars(L"skin:" + skin);
-    dos.writeChars(L"lastServer:" + lastMpIp);
+    dos.writeTextLine(L"mouseSensitivity:" + _toString<float>(sensitivity) +
+                   L"\n");
+    dos.writeTextLine(L"fov:" + _toString<float>(fov) + L"\n");
+    dos.writeTextLine(L"gamma:" + _toString<float>(gamma) + L"\n");
+    dos.writeTextLine(L"viewDistance:" + _toString<int>(viewDistance) + L"\n");
+    dos.writeTextLine(L"guiScale:" + _toString<int>(guiScale) + L"\n");
+    dos.writeTextLine(L"particles:" + _toString<int>(particles) + L"\n");
+    dos.writeTextLine(L"bobView:" +
+                   std::wstring(bobView ? L"true" : L"false") + L"\n");
+    dos.writeTextLine(L"anaglyph3d:" +
+                   std::wstring(anaglyph3d ? L"true" : L"false") + L"\n");
+    dos.writeTextLine(L"advancedOpengl:" +
+                   std::wstring(advancedOpengl ? L"true" : L"false") + L"\n");
+    dos.writeTextLine(L"fpsLimit:" + _toString<int>(framerateLimit) + L"\n");
+    dos.writeTextLine(L"difficulty:" + _toString<int>(difficulty) + L"\n");
+    dos.writeTextLine(L"fancyGraphics:" +
+                   std::wstring(fancyGraphics ? L"true" : L"false") + L"\n");
+    dos.writeTextLine(L"ao:" +
+                   std::wstring(ambientOcclusion ? L"true" : L"false") +
+                   L"\n");
+    dos.writeTextLine(L"clouds:" + _toString<bool>(renderClouds) + L"\n");
+    dos.writeTextLine(L"skin:" + skin + L"\n");
+    dos.writeTextLine(L"lastServer:" + lastMpIp + L"\n");
+    dos.writeTextLine(L"autosaveInterval:" +
+                   _toString<int>(autosaveIntervalSeconds) + L"\n");
 
     for (int i = 0; i < keyMappings_length; i++) {
-        dos.writeChars(L"key_" + keyMappings[i]->name + L":" +
-                       _toString<int>(keyMappings[i]->key));
+        dos.writeTextLine(L"key_" + keyMappings[i]->name + L":" +
+                       _toString<int>(keyMappings[i]->key) + L"\n");
     }
 
     dos.close();

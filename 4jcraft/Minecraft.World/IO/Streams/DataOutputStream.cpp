@@ -184,6 +184,28 @@ void DataOutputStream::writeChars(const std::wstring& str) {
     // Incrementing handled by the writeChar function
 }
 
+// 4jcraft: writes text as single-byte-per-ASCII-char UTF-8, matching the
+// decoding done by DataInputStream::readUTFChar() (used by
+// InputStreamReader/BufferedReader when reading text files like
+// options.txt). writeChars() writes 2 bytes per char and is not compatible
+// with that reader.
+void DataOutputStream::writeTextLine(const std::wstring& str) {
+    for (unsigned int i = 0; i < str.length(); i++) {
+        wchar_t c = str.at(i);
+        if (c >= 0x0001 && c <= 0x007F) {
+            stream->write((unsigned int)c);
+        } else if (c > 0x07FF) {
+            stream->write((unsigned int)(0xE0 | ((c >> 12) & 0x0F)));
+            stream->write((unsigned int)(0x80 | ((c >> 6) & 0x3F)));
+            stream->write((unsigned int)(0x80 | ((c >> 0) & 0x3F)));
+        } else {
+            stream->write((unsigned int)(0xC0 | ((c >> 6) & 0x1F)));
+            stream->write((unsigned int)(0x80 | ((c >> 0) & 0x3F)));
+        }
+        written++;
+    }
+}
+
 // Writes a bool to the underlying output stream as a 1-byte value.
 // The value true is written out as the value (uint8_t)1; the value false is
 // written out as the value (uint8_t)0. If no exception is thrown, the counter
