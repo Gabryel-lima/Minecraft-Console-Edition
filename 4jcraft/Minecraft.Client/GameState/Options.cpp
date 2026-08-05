@@ -29,7 +29,7 @@ const Options::Option Options::Option::options[17] = {
     Options::Option(L"options.difficulty", false, false),
     Options::Option(L"options.graphics", false, false),
     Options::Option(L"options.ao", false, true),
-    Options::Option(L"options.guiScale", false, false),
+    Options::Option(L"options.guiScale", true, false),
     Options::Option(L"options.fov", true, false),
     Options::Option(L"options.gamma", true, false),
     Options::Option(L"options.renderClouds", false, true),
@@ -225,11 +225,15 @@ void Options::set(const Options::Option* item, float fVal) {
         if (viewDistance < 0) viewDistance = 0;
         if (viewDistance > 3) viewDistance = 3;
     }
+    if (item == Option::GUI_SCALE) {
+        guiScale = (int)(fVal * 3.0f + 0.5f);
+        if (guiScale < 0) guiScale = 0;
+        if (guiScale > 3) guiScale = 3;
+    }
 }
 
 void Options::toggle(const Options::Option* option, int dir) {
     if (option == Option::INVERT_MOUSE) invertYMouse = !invertYMouse;
-    if (option == Option::GUI_SCALE) guiScale = (guiScale + dir) & 3;
     if (option == Option::PARTICLES) particles = (particles + dir) % 3;
 
     // 4J-PB - changing
@@ -280,6 +284,7 @@ float Options::getProgressValue(const Options::Option* item) {
     if (item == Option::SOUND) return sound;
     if (item == Option::SENSITIVITY) return sensitivity;
     if (item == Option::RENDER_DISTANCE) return viewDistance / 3.0f;
+    if (item == Option::GUI_SCALE) return guiScale / 3.0f;
     return 0;
 }
 
@@ -334,6 +339,8 @@ std::wstring Options::getMessage(const Options::Option* item) {
         } else if (item == Option::RENDER_DISTANCE) {
             return caption +
                    language->getElement(RENDER_DISTANCE_NAMES[viewDistance]);
+        } else if (item == Option::GUI_SCALE) {
+            return caption + language->getElement(GUI_SCALE[guiScale]);
         } else {
             if (progressValue == 0) {
                 return caption + language->getElement(L"options.off");
@@ -348,8 +355,6 @@ std::wstring Options::getMessage(const Options::Option* item) {
         return caption + language->getElement(L"options.off");
     } else if (item == Option::DIFFICULTY) {
         return caption + language->getElement(DIFFICULTY_NAMES[difficulty]);
-    } else if (item == Option::GUI_SCALE) {
-        return caption + language->getElement(GUI_SCALE[guiScale]);
     } else if (item == Option::PARTICLES) {
         return caption + language->getElement(PARTICLES[particles]);
     } else if (item == Option::FRAMERATE_LIMIT) {

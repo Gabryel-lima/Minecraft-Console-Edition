@@ -81,14 +81,30 @@ void Gui::render(float a, bool mouseFree, int xMouse, int yMouse) {
         iHeightOffset = 0;  // used to get the interface looking right on a 2
                             // player split screen game
 
+    // 4jcraft: the Small/Normal/Large slider used to select an absolute
+    // scale (2/3/4), which only matched the screen at the original 720p
+    // console resolution. On larger/higher-res displays the HUD stayed
+    // pinned to a tiny fraction of the screen. Anchor the slider to the
+    // scale that actually fits the current resolution instead, so the UI
+    // grows proportionally with it (at 1280x720 this still yields 2/3/4,
+    // identical to the previous fixed values).
+    int autoScale = 1;
+    while (minecraft->width / (autoScale + 1) >= 320 &&
+           minecraft->height / (autoScale + 1) >= 240) {
+        autoScale++;
+    }
+
     // 4J-PB - selected the gui scale based on the slider settings
     if (minecraft->player->m_iScreenSection ==
         C4JRender::VIEWPORT_TYPE_FULLSCREEN) {
-        guiScale = app.GetGameSettings(iPad, eGameSetting_UISize) + 2;
+        guiScale = autoScale +
+                   (app.GetGameSettings(iPad, eGameSetting_UISize) - 1);
     } else {
         guiScale =
-            app.GetGameSettings(iPad, eGameSetting_UISizeSplitscreen) + 2;
+            autoScale +
+            (app.GetGameSettings(iPad, eGameSetting_UISizeSplitscreen) - 1);
     }
+    if (guiScale < 1) guiScale = 1;
 
     ScreenSizeCalculator ssc(minecraft->options, minecraft->width,
                              minecraft->height, guiScale);
