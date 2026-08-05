@@ -136,6 +136,8 @@ public:
 private:
     CuriousMobController* controller;
 
+    void enforceSurvivalMode();
+
     // Sequência completa de destruição de bloco em sobrevivência.
     bool destroyTileAt(int x, int y, int z);
 

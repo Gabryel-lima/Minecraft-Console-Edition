@@ -22,6 +22,7 @@
 #include "../../../Minecraft.World/Util/Vec3.h"
 #include "../../Level/ServerLevel.h"
 #include "../../MinecraftServer.h"
+#include "../../Player/EntityTracker.h"
 
 BotPlayer::BotPlayer(Level* level, const std::wstring& name)
     : Player(level, name), controller(nullptr) {
@@ -38,11 +39,7 @@ BotPlayer::BotPlayer(Level* level, const std::wstring& name)
     // seu moveTo().
     heightOffset = 0;
 
-    abilities.invulnerable = false;
-    abilities.flying = false;
-    abilities.mayfly = false;
-    abilities.instabuild = false;
-    abilities.mayBuild = true;
+    enforceSurvivalMode();
 
     // Sistema de confiança (privilégios): sem passar pela rede, o bot nasceria
     // sem nenhum privilégio concedido, e isAllowedToMine()/isAllowedToUse()
@@ -56,6 +53,14 @@ BotPlayer::BotPlayer(Level* level, const std::wstring& name)
 }
 
 BotPlayer::~BotPlayer() { delete controller; }
+
+void BotPlayer::enforceSurvivalMode() {
+    abilities.invulnerable = false;
+    abilities.flying = false;
+    abilities.mayfly = false;
+    abilities.instabuild = false;
+    abilities.mayBuild = true;
+}
 
 void BotPlayer::tick() {
     // Espelha o "Respawn" que um jogador real manda por packet depois da
@@ -126,11 +131,25 @@ void BotPlayer::respawnAfterDeath() {
 
     setSize(0.6f, 1.8f);
     setDefaultHeadHeight();
+
+    // getSharedSpawnPos() devolve a coluna do spawn, não uma posição livre:
+    // se houver terreno ali (o spawn compartilhado costuma cair dentro do
+    // relevo depois que o mundo é gerado/modificado), o bot renascia DENTRO
+    // do bloco e sufocava - 1 de dano por tick, morrendo e renascendo no
+    // mesmo ponto para sempre. PlayerList::respawn() resolve isso do mesmo
+    // jeito: sobe até não colidir com nada. O limite de iterações é só uma
+    // trava contra loop infinito (coluna sólida até o teto do mundo).
+    for (int attempt = 0; attempt < 256; attempt++) {
+        auto* cubes = level->getCubes(shared_from_this(), &bb);
+        if (cubes == nullptr || cubes->empty()) break;
+        setPos(x, y + 1, z);
+    }
     setHealth(getMaxHealth());
     foodData = FoodData();
     clearFire();
     fallDistance = 0;
     dead = false;
+    enforceSurvivalMode();
 
     // Player::die() já esvaziou o inventário (dropAll) quando keepInventory
     // está desligado, mas não mexe em XP - isso normalmente é perdido porque
@@ -141,6 +160,36 @@ void BotPlayer::respawnAfterDeath() {
         experienceLevel = 0;
         totalExperience = 0;
         experienceProgress = 0;
+    }
+
+    // Ressincroniza o espelho client-side. Quando a vida chega a zero,
+    // LivingEntity::hurt() manda EntityEvent::DEATH para todos os clientes que
+    // acompanham a entidade; o cliente responde com setHealth(0) + die() e,
+    // 20 ticks depois (a animação de tombar), APAGA o RemotePlayer do mundo
+    // dele. Do lado servidor o bot renasce e continua vivo, mas o cliente
+    // nunca mais recebe um pacote de spawn - resultado: bot invisível e
+    // aparentemente parado no lugar onde morreu. Um jogador de verdade não
+    // sofre disso porque PlayerList::respawn() destrói e recria o
+    // ServerPlayer inteiro, e o novo passa pelo tracker do zero. Fazemos o
+    // equivalente mínimo: tira do tracker (RemoveEntitiesPacket) e põe de
+    // volta (AddPlayerPacket na posição nova).
+    ServerLevel* serverLevel = dynamic_cast<ServerLevel*>(level);
+    if (serverLevel != nullptr) {
+        EntityTracker* tracker = serverLevel->getTracker();
+        if (tracker != nullptr) {
+            std::shared_ptr<Entity> self = shared_from_this();
+            int oldEntityId = entityId;
+            tracker->removeEntity(self);
+            // O RemoveEntitiesPacket do ID antigo ainda está pendente nos
+            // jogadores que viam o bot. Use um ID novo antes do AddPlayerPacket
+            // para que a remoção atrasada não apague o RemotePlayer recriado.
+            resetSmallId();
+            enforceSurvivalMode();
+            tracker->addEntity(self);
+            fprintf(stderr,
+                    "[CuriousMob] bot entityId trocado no respawn: %d -> %d\n",
+                    oldEntityId, entityId);
+        }
     }
 
     fprintf(stderr, "[CuriousMob] bot respawnou em (%.2f,%.2f,%.2f)\n", x, y,
