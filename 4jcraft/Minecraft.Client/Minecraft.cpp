@@ -1,8 +1,19 @@
 #include <thread>
 #include <chrono>
+#include <cstdlib>
+#include <SDL2/SDL.h>
 
 #include "Platform/stdafx.h"
 #include "Minecraft.h"
+#include "Mods/CuriousMob/BotPlayer.h"
+
+// CuriousMob (mods/CuriousMob) - ver comentário em setLevel(): o spawn
+// precisa esperar a posição final (pós-rede) do jogador, então é adiado
+// para Minecraft::tick() via essas flags.
+static bool s_curiousMobPendingSpawn = false;
+static bool s_curiousMobSpawned = false;
+static std::shared_ptr<BotPlayer> s_curiousMobBot = nullptr;
+static bool s_curiousMobTeleportKeyWasDown = false;
 #include "GameState/GameMode.h"
 #include "UI/Screens/PauseScreen.h"
 #include "Utils/Timer.h"
@@ -1967,6 +1978,48 @@ void Minecraft::tick(bool bFirst, bool bUpdateTextures) {
     // 4J-PB - only tick this player's stats
     stats[iPad]->tick(iPad);
 
+    // CuriousMob (mods/CuriousMob) - spawn adiado até aqui (ver
+    // setLevel()): esperamos alguns ticks depois que o mundo/jogador
+    // existem para dar tempo da posição final (atribuída pelo servidor via
+    // LoginPacket) chegar - spawnar antes disso colocava o bot na posição
+    // placeholder pré-rede, longe do jogador real.
+    if (s_curiousMobPendingSpawn && !s_curiousMobSpawned && level != nullptr &&
+        player != nullptr) {
+        static int s_curiousMobSpawnTick = -1;
+        if (s_curiousMobSpawnTick < 0) s_curiousMobSpawnTick = ticks + 20;
+        if (ticks >= s_curiousMobSpawnTick) {
+            s_curiousMobSpawned = true;
+            s_curiousMobBot =
+                std::shared_ptr<BotPlayer>(new BotPlayer(level, L"CuriousMob"));
+            s_curiousMobBot->moveTo(player->x + 2, player->y, player->z, 0, 0);
+            bool addedOk = level->addEntity(s_curiousMobBot);
+            fprintf(stderr,
+                    "[CuriousMob] spawn: player=(%.2f,%.2f,%.2f) "
+                    "bot=(%.2f,%.2f,%.2f) addEntity=%s\n",
+                    player->x, player->y, player->z, s_curiousMobBot->x,
+                    s_curiousMobBot->y, s_curiousMobBot->z,
+                    addedOk ? "ok" : "FALHOU");
+        }
+    }
+
+    // CuriousMob - tecla de debug (F4) para teleportar o jogador local até
+    // a posição do bot. F sozinho já é a tecla de interagir/usar do jogo
+    // (ver 4J.Input/4J_Input.cpp), por isso usamos F4, que está livre.
+    if (s_curiousMobBot != nullptr && player != nullptr && screen == nullptr) {
+        const Uint8* keyState = SDL_GetKeyboardState(nullptr);
+        bool teleportKeyDown = keyState[SDL_SCANCODE_F4] != 0;
+        if (teleportKeyDown && !s_curiousMobTeleportKeyWasDown) {
+            player->moveTo(s_curiousMobBot->x, s_curiousMobBot->y,
+                            s_curiousMobBot->z, player->yRot, player->xRot);
+            fprintf(stderr,
+                    "[CuriousMob] F4: jogador teleportado para "
+                    "(%.2f,%.2f,%.2f)\n",
+                    s_curiousMobBot->x, s_curiousMobBot->y,
+                    s_curiousMobBot->z);
+        }
+        s_curiousMobTeleportKeyWasDown = teleportKeyDown;
+    }
+
     // Tick the opacity timer (to display the interface at default opacity for a
     // certain time if the user has been navigating it)
     app.TickOpacityTimer(iPad);
@@ -3840,6 +3893,21 @@ void Minecraft::setLevel(MultiPlayerLevel* level, int message /*=-1*/,
             if (level != nullptr) {
                 level->addEntity(player);
                 playerAdded = true;
+
+                // CuriousMob (mods/CuriousMob) - spawn de debug opcional, só
+                // quando a variável de ambiente é definida; não afeta o jogo
+                // normalmente. Ver mods/CuriousMob/README.md.
+                //
+                // O spawn em si é adiado para Minecraft::tick() (ver mais
+                // abaixo) - aqui, neste ponto de setLevel(), player->x/y/z
+                // ainda é a posição placeholder pré-rede (ex.: (0.5, ~2.6,
+                // 0.5)), não a posição final que o servidor atribui ao
+                // jogador. Spawnar aqui colocava o bot a centenas de blocos
+                // de distância do jogador real, tornando-o efetivamente
+                // invisível.
+                if (std::getenv("CURIOUSMOB_SPAWN") != nullptr) {
+                    s_curiousMobPendingSpawn = true;
+                }
             }
         }
 

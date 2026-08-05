@@ -1,0 +1,4 @@
+gymnasium>=0.29
+numpy>=1.26
+
+# torch e stable-baselines3 entram só na etapa de treino real (PPO), ver PLANO.md
