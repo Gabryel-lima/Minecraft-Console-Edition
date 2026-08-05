@@ -52,6 +52,7 @@ bool LeashItem::bindPlayerMobs(std::shared_ptr<Player> player, Level* level,
             }
         }
     }
+    delete mobs;  // 4J-fix: getEntitiesOfClass() transfere a posse do vetor
     return foundMobs;
 }
 
@@ -67,9 +68,12 @@ bool LeashItem::bindPlayerMobsTest(std::shared_ptr<Player> player, Level* level,
     if (mobs != nullptr) {
         for (auto it = mobs->begin(); it != mobs->end(); ++it) {
             std::shared_ptr<Mob> mob = std::dynamic_pointer_cast<Mob>(*it);
-            if (mob->isLeashed() && mob->getLeashHolder() == player)
+            if (mob->isLeashed() && mob->getLeashHolder() == player) {
+                delete mobs;  // 4J-fix: não vazar no retorno antecipado
                 return true;
+            }
         }
     }
+    delete mobs;  // 4J-fix: getEntitiesOfClass() transfere a posse do vetor
     return false;
 }

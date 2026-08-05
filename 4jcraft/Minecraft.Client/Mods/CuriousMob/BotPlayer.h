@@ -9,19 +9,67 @@
 // CuriousMobController a cada tick, que por sua vez lê ações vindas da
 // ponte TCP (CuriousMobBridge) com o processo Python externo.
 //
-// Quebrar/colocar bloco NÃO usa GameMode nem ServerPlayerGameMode (ambos
-// acoplados a um Minecraft*/ServerPlayer vivos, com timing de inicialização
-// incerto para um bot). Em vez disso, chama diretamente as primitivas de
-// Level/Tile — o mesmo nível que GameMode::destroyBlock/TileItem::useOn
-// usam por baixo.
+// PARIDADE COM O PLAYER
+// ---------------------
+// A superfície de ações abaixo espelha o que um jogador humano pode fazer:
+//
+//   input     -> setMoveInput / lookBy / setSneaking / setSprinting
+//   mira      -> pickTarget()   (raycast, igual ao GameRenderer::pick)
+//   ataque    -> attackTarget() (entidade: Player::attack; bloco: destruir)
+//   uso       -> useTarget()    (entidade: Player::interact; bloco:
+//                                Tile::use e depois ItemInstance::useOn;
+//                                ar: ItemInstance::use)
+//   item      -> releaseUsingItem / stopUsingItem (arco, comida)
+//   inventário-> selectSlot / swapSlots / dropSelected / dropAll
+//   container -> closeContainerMenu (a abertura acontece via useTarget,
+//                que é o mesmo caminho do jogador real)
+//
+// O ponto importante é que attackTarget()/useTarget() NÃO são ações novas
+// inventadas para o bot: são os dois cliques do mouse do jogador, roteados
+// pelo mesmo `if entidade / senão bloco / senão ar` que
+// ServerPlayerGameMode::useItemOn e GameMode::attack usam. Qualquer mecânica
+// que o jogo implemente dentro de Tile::use ou Item::useOn (portas, botões,
+// baús, fornalhas, baldes, isqueiro, enxada, plantar, tosquiar, montar,
+// domesticar...) passa a valer para o bot de graça, sem código específico
+// aqui.
+//
+// Quebrar bloco não usa ServerPlayerGameMode (acoplado a um Minecraft*/
+// ServerPlayer vivos, com timing de inicialização incerto para um bot). Em
+// vez disso, replicamos a sequência de sobrevivência dele em destroyTileAt():
+// playerWillDestroy -> removeTile -> destroy -> mineBlock (desgaste da
+// ferramenta) -> playerDestroy (drops/XP).
+
+#include <memory>
 
 #include "../../../Minecraft.World/Player/Player.h"
 
 class Level;
+class Entity;
 class CuriousMobController;
+
+// Resultado da mira do bot: o análogo do `Minecraft::hitResult` do jogador.
+struct BotTarget {
+    enum Kind { NONE, TILE, ENTITY };
+
+    Kind kind = NONE;
+
+    // Válidos quando kind == TILE.
+    int x = 0, y = 0, z = 0;
+    int face = 0;
+    float clickX = 0.5f, clickY = 0.5f, clickZ = 0.5f;
+
+    // Válido quando kind == ENTITY.
+    std::shared_ptr<Entity> entity;
+
+    double distance = 0.0;
+};
 
 class BotPlayer : public Player {
 public:
+    // Alcance de interação, em blocos — o mesmo do jogador em sobrevivência
+    // (GameMode::getPickRange).
+    static constexpr double REACH = 4.5;
+
     BotPlayer(Level* level, const std::wstring& name);
     virtual ~BotPlayer();
 
@@ -31,21 +79,53 @@ public:
     // precisa de permissão para nenhum.
     virtual bool hasPermission(EGameCommand command) { return false; }
 
-    // Input de movimento para este tick — espelha o que o Input real
-    // escreveria para um LocalPlayer antes de Player::aiStep() rodar.
+    // --- Input (espelha o que o Input real escreve num LocalPlayer) ------
     void setMoveInput(float strafe, float forward, bool jump);
-    void turnBy(float yawDelta);
+    void lookBy(float yawDelta, float pitchDelta);
+    void turnBy(float yawDelta) { lookBy(yawDelta, 0.0f); }
 
-    // Ações de mundo, autocontidas.
+    // --- Mira ------------------------------------------------------------
+    // Raycast a partir dos olhos, entidade tem prioridade sobre bloco quando
+    // está mais perto — mesma regra do GameRenderer::pick.
+    BotTarget pickTarget(double range = REACH);
+
+    // --- Cliques ---------------------------------------------------------
+    bool attackTarget();  // botão esquerdo
+    bool useTarget();     // botão direito
+
+    // Atalhos que o protocolo ainda expõe (compat. com a Etapa 1): agem
+    // sobre o alvo mirado, não sobre uma célula fixa à frente.
     bool breakBlockInFront();
     bool placeBlockInFront();
     bool attackNearestEntity(double radius);
 
-    // Id do bloco (tile) na célula à frente do bot, ou -1 se indisponível.
+    // --- Item em uso (arco carregando, comida sendo comida) --------------
+    void releaseItem() { releaseUsingItem(); }
+    void cancelItem() { stopUsingItem(); }
+
+    // --- Inventário ------------------------------------------------------
+    bool selectSlot(int slot);            // hotbar, 0..8
+    bool swapInventorySlots(int a, int b);
+    bool dropSelected(bool wholeStack);
+    void dropWholeInventory();
+
+    // --- Container -------------------------------------------------------
+    bool hasContainerOpen() const;
+    void closeContainerMenu();
+
+    // --- Leitura de estado (usada pelo controller p/ montar o JSON) ------
     int getBlockIdInFront();
+    int getTileAtOffset(int dx, int dy, int dz) const;
+    // Não é const: precisa de shared_from_this() para se excluir da busca,
+    // e a versão const disso devolve shared_ptr<const Entity>, que
+    // Level::getEntities não aceita.
+    std::shared_ptr<Entity> getNearestEntity(double radius);
 
 private:
     CuriousMobController* controller;
 
-    bool getBlockInFrontPos(int& outX, int& outY, int& outZ);
+    // Sequência completa de destruição de bloco em sobrevivência.
+    bool destroyTileAt(int x, int y, int z);
+
+    std::shared_ptr<Player> selfAsPlayer();
 };

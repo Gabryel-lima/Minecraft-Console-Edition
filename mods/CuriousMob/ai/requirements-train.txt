@@ -1,0 +1,7 @@
+# Dependências só do treino real (Etapas 3 e 4 do PLANO.md).
+# O agente roda sem nada disto: environment.py + policy.CuriousPolicy usam
+# apenas a biblioteca padrão. Instale isto quando for rodar train.py.
+-r requirements.txt
+
+torch>=2.2
+stable-baselines3>=2.3

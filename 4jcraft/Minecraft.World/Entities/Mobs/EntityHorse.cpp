@@ -421,6 +421,8 @@ std::shared_ptr<EntityHorse> EntityHorse::getClosestMommy(
 
     std::shared_ptr<Entity> mommy = nullptr;
     AABB expanded = baby->bb.expand(searchRadius, searchRadius, searchRadius);
+    // 4J-fix: getEntities() devolve o vetor membro Level::es emprestado (só
+    // getEntitiesOfClass() aloca com new), então não pode ser deletado aqui.
     std::vector<std::shared_ptr<Entity> >* list =
         level->getEntities(baby, &expanded, PARENT_HORSE_SELECTOR);
 
@@ -434,8 +436,6 @@ std::shared_ptr<EntityHorse> EntityHorse::getClosestMommy(
             closestDistance = distanceSquared;
         }
     }
-    delete list;
-
     return std::dynamic_pointer_cast<EntityHorse>(mommy);
 }
 

@@ -766,13 +766,29 @@ int LevelRenderer::renderChunks(int from, int to, int layer, double alpha) {
     int count = 0;
     ClipChunk* pClipChunk = chunks[playerIndex].data;
     unsigned char emptyFlag = LevelRenderer::CHUNK_FLAG_EMPTY0 << layer;
-    static thread_local std::vector<ClipChunk*> sortList;
+    // 4jcraft perf: ordenação por chave pré-computada (transformação de
+    // Schwartz). O comparador antigo recalculava as duas distâncias a cada
+    // comparação, ou seja ~2*N*log2(N) subtrações/multiplicações por camada
+    // por frame; aqui a distância é calculada uma única vez por chunk (N) na
+    // própria coleta, e o sort passa a comparar um float já pronto. Além de
+    // mais barato, o comparador vira trivial e ramifica melhor.
+    //
+    // NÃO reintroduzir cache de "só reordenar se o jogador andou": sortList é
+    // reconstruída do zero a cada chamada, então pular o std::sort não
+    // preserva a ordem anterior — deixa a ordem crua do array de chunks. Para
+    // a camada transparente isso quebra o blending (precisa ser do mais
+    // distante para o mais próximo), e o estado do cache ainda teria de ser
+    // indexado por camada e por jogador (split-screen), não global.
+    static thread_local std::vector<std::pair<float, ClipChunk*> > sortList;
     sortList.clear();
     if (sortList.capacity() < (size_t)chunks[playerIndex].length) {
         sortList.reserve(chunks[playerIndex].length);
     }
     {
         FRAME_PROFILE_SCOPE(ChunkCollect);
+        const float fxOff = (float)xOff;
+        const float fyOff = (float)yOff;
+        const float fzOff = (float)zOff;
         for (int i = 0; i < chunks[playerIndex].length; i++, pClipChunk++) {
             if (!pClipChunk->visible)
                 continue;  // This will be set if the chunk isn't visible, or
@@ -784,50 +800,33 @@ int LevelRenderer::renderChunks(int from, int to, int layer, double alpha) {
                 emptyFlag)
                 continue;
 
-            sortList.push_back(pClipChunk);
+            const float dx = (pClipChunk->chunk->x + 8.0f) - fxOff;
+            const float dy = (pClipChunk->chunk->y + 8.0f) - fyOff;
+            const float dz = (pClipChunk->chunk->z + 8.0f) - fzOff;
+            sortList.emplace_back(dx * dx + dy * dy + dz * dz, pClipChunk);
         }
-        // 4J Perf: Only re-sort when the player has moved more than 1 block
-        // or the visible chunk set has changed. Saves ~120 sorts/sec at 60fps.
-        static thread_local float s_lastSortX = -999999.f;
-        static thread_local float s_lastSortY = -999999.f;
-        static thread_local float s_lastSortZ = -999999.f;
-        static thread_local size_t s_lastSortCount = 0;
-        float dx = (float)xOff - s_lastSortX;
-        float dy = (float)yOff - s_lastSortY;
-        float dz = (float)zOff - s_lastSortZ;
-        float movedSq = dx * dx + dy * dy + dz * dz;
-        bool needsSort = movedSq > 1.0f ||
-                         sortList.size() != s_lastSortCount;
 
-        if (needsSort) {
-            // he sorts me till i
+        if (layer == 0) {
+            // Opaco: mais próximo primeiro, para o early-Z descartar o resto.
             std::sort(sortList.begin(), sortList.end(),
-                      [xOff, yOff, zOff, layer](ClipChunk* a, ClipChunk* b) {
-                          float dxA = (float)((a->chunk->x + 8.0f) - xOff);
-                          float dyA = (float)((a->chunk->y + 8.0f) - yOff);
-                          float dzA = (float)((a->chunk->z + 8.0f) - zOff);
-                          float distSqA = dxA * dxA + dyA * dyA + dzA * dzA;
-
-                          float dxB = (float)((b->chunk->x + 8.0f) - xOff);
-                          float dyB = (float)((b->chunk->y + 8.0f) - yOff);
-                          float dzB = (float)((b->chunk->z + 8.0f) - zOff);
-                          float distSqB = dxB * dxB + dyB * dyB + dzB * dzB;
-
-                          if (layer == 0)
-                              return distSqA < distSqB;  // Opaque: Closest first
-                          return distSqA > distSqB;      // Transparent: Furthest
-                                                         // first
+                      [](const std::pair<float, ClipChunk*>& a,
+                         const std::pair<float, ClipChunk*>& b) {
+                          return a.first < b.first;
                       });
-            s_lastSortX = (float)xOff;
-            s_lastSortY = (float)yOff;
-            s_lastSortZ = (float)zOff;
-            s_lastSortCount = sortList.size();
+        } else {
+            // Transparente: mais distante primeiro, exigido pelo blending.
+            std::sort(sortList.begin(), sortList.end(),
+                      [](const std::pair<float, ClipChunk*>& a,
+                         const std::pair<float, ClipChunk*>& b) {
+                          return a.first > b.first;
+                      });
         }
     }
 
     {
         FRAME_PROFILE_SCOPE(ChunkPlayback);
-        for (ClipChunk* chunk : sortList) {
+        for (const auto& entry : sortList) {
+            ClipChunk* chunk = entry.second;
             int list = chunk->globalIdx * 2 + layer;
             list += chunkLists;
 
@@ -1814,22 +1813,34 @@ bool LevelRenderer::updateDirtyChunks() {
                         for (int y = 0; y < CHUNK_Y_COUNT; y++) {
                             ClipChunk* pClipChunk =
                                 &chunks[p][(z * yChunks + y) * xChunks + x];
-                            // Get distance to this chunk - deliberately not
-                            // calling the chunk's method of doing this to avoid
-                            // overheads (passing entitie, type conversion etc.)
-                            // that this involves
-                            int xd = pClipChunk->xm - px;
-                            int yd = pClipChunk->ym - py;
-                            int zd = pClipChunk->zm - pz;
-                            int distSq = xd * xd + yd * yd + zd * zd;
-                            int distSqWeighted =
-                                xd * xd + yd * yd * 4 +
-                                zd * zd;  // Weighting against y to prioritise
-                                          // things in same x/z plane as player
-                                          // first
 
+                            // 4jcraft perf: testar CHUNK_FLAG_DIRTY ANTES de
+                            // calcular distância. Este laço varre todos os
+                            // xChunks*zChunks*CHUNK_Y_COUNT chunks por jogador
+                            // por frame, mas só um punhado costuma estar sujo.
+                            // Calcular distSq/distSqWeighted para todos antes
+                            // do teste gastava ~6 multiplicações por chunk
+                            // (dezenas de milhares por frame) cujo resultado
+                            // era descartado logo em seguida. Todo uso de
+                            // distSq/distSqWeighted já estava dentro deste if,
+                            // então a ordem só troca trabalho desperdiçado por
+                            // um teste de bit.
                             if (globalChunkFlags[pClipChunk->globalIdx] &
                                 CHUNK_FLAG_DIRTY) {
+                                // Get distance to this chunk - deliberately not
+                                // calling the chunk's method of doing this to
+                                // avoid overheads (passing entitie, type
+                                // conversion etc.) that this involves
+                                int xd = pClipChunk->xm - px;
+                                int yd = pClipChunk->ym - py;
+                                int zd = pClipChunk->zm - pz;
+                                int distSq = xd * xd + yd * yd + zd * zd;
+                                int distSqWeighted =
+                                    xd * xd + yd * yd * 4 +
+                                    zd * zd;  // Weighting against y to
+                                              // prioritise things in same x/z
+                                              // plane as player first
+
                                 if ((!onlyRebuild) ||
                                     globalChunkFlags[pClipChunk->globalIdx] &
                                         CHUNK_FLAG_COMPILED ||

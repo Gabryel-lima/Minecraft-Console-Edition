@@ -1,13 +1,20 @@
 #include "BotPlayer.h"
 #include "CuriousMobController.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 
 #include "../../../Minecraft.World/Blocks/Tile.h"
+#include "../../../Minecraft.World/Containers/AbstractContainerMenu.h"
+#include "../../../Minecraft.World/Containers/Inventory.h"
+#include "../../../Minecraft.World/Entities/ItemEntity.h"
+#include "../../../Minecraft.World/Entities/LivingEntity.h"
+#include "../../../Minecraft.World/Items/Item.h"
 #include "../../../Minecraft.World/Items/ItemInstance.h"
 #include "../../../Minecraft.World/Level/Level.h"
 #include "../../../Minecraft.World/Util/AABB.h"
+#include "../../../Minecraft.World/Util/HitResult.h"
 #include "../../../Minecraft.World/Util/Vec3.h"
 
 BotPlayer::BotPlayer(Level* level, const std::wstring& name)
@@ -22,6 +29,13 @@ BotPlayer::BotPlayer(Level* level, const std::wstring& name)
     abilities.mayfly = false;
     abilities.instabuild = false;
     abilities.mayBuild = true;
+
+    // Sistema de confiança (privilégios): sem passar pela rede, o bot nasceria
+    // sem nenhum privilégio concedido, e isAllowedToMine()/isAllowedToUse()
+    // recusariam quebrar bloco, abrir baú e usar porta em mundos com o
+    // sistema ligado. Concedemos tudo — o bot é um jogador local de
+    // desenvolvimento, não um convidado remoto.
+    enableAllPlayerPrivileges(true);
 
     fprintf(stderr, "[CuriousMob] BotPlayer construido\n");
     controller = new CuriousMobController(this);
@@ -44,89 +58,343 @@ void BotPlayer::tick() {
     Player::tick();
 }
 
+std::shared_ptr<Player> BotPlayer::selfAsPlayer() {
+    return std::dynamic_pointer_cast<Player>(shared_from_this());
+}
+
+// --- Input --------------------------------------------------------------
+
 void BotPlayer::setMoveInput(float strafe, float forward, bool jump) {
     xxa = strafe;
     yya = forward;
     setJumping(jump);
 }
 
-void BotPlayer::turnBy(float yawDelta) { setRot(yRot + yawDelta, xRot); }
+void BotPlayer::lookBy(float yawDelta, float pitchDelta) {
+    float newPitch = xRot + pitchDelta;
+    // Mesmo clamp do input do jogador real: acima de 90° a câmera viraria de
+    // cabeça para baixo e o vetor de visão passaria a apontar para trás.
+    newPitch = std::max(-90.0f, std::min(90.0f, newPitch));
+    setRot(yRot + yawDelta, newPitch);
+}
 
-bool BotPlayer::getBlockInFrontPos(int& outX, int& outY, int& outZ) {
-    std::optional<Vec3> look = getLookAngle();
-    if (!look.has_value()) return false;
+// --- Mira ---------------------------------------------------------------
 
-    double eyeY = y + getHeadHeight();
-    const double reach = 1.5;
+BotTarget BotPlayer::pickTarget(double range) {
+    BotTarget target;
+    if (level == nullptr) return target;
 
-    outX = static_cast<int>(std::floor(x + look->x * reach));
-    outY = static_cast<int>(std::floor(eyeY + look->y * reach));
-    outZ = static_cast<int>(std::floor(z + look->z * reach));
+    // Bloco: exatamente o mesmo raycast que o jogo faz para o jogador
+    // (GameRenderer::pick -> LivingEntity::pick), inclusive a origem do raio,
+    // para o bot mirar no mesmo lugar que um humano miraria.
+    HitResult* tileHit = pick(range, 1.0f);
+
+    Vec3 from = getPos(1.0f);
+    double tileDist = range;
+    if (tileHit != nullptr) tileDist = tileHit->pos.distanceTo(from);
+
+    // Entidade: mesma varredura do GameRenderer::pick — expande a bb do bot
+    // ao longo do vetor de visão e clipa cada entidade "pickable" contra o
+    // raio, ficando com a mais próxima que esteja à frente do bloco.
+    Vec3 dir = getViewVector(1.0f);
+    Vec3 to(dir.x * range, dir.y * range, dir.z * range);
+    to = to.add(from.x, from.y, from.z);
+
+    const float overlap = 1.0f;
+    AABB grown = bb.expand(dir.x * range, dir.y * range, dir.z * range)
+                     .grow(overlap, overlap, overlap);
+
+    // ATENÇÃO: getEntities() NÃO transfere posse — devolve um ponteiro para o
+    // vetor membro Level::es, reaproveitado (clear()) a cada chamada. Só
+    // getEntitiesOfClass() devolve um vetor de heap que o chamador deve
+    // deletar. Dar delete aqui corromperia a heap.
+    std::vector<std::shared_ptr<Entity>>* nearby =
+        level->getEntities(shared_from_this(), &grown);
+
+    std::shared_ptr<Entity> hovered = nullptr;
+    double nearest = tileDist;
+    if (nearby != nullptr) {
+        for (auto& e : *nearby) {
+            if (e == nullptr || e.get() == this) continue;
+            if (!e->isPickable()) continue;
+
+            float rr = e->getPickRadius();
+            AABB entityBox = e->bb.grow(rr, rr, rr);
+            if (entityBox.contains(from)) {
+                hovered = e;
+                nearest = 0.0;
+                continue;
+            }
+            HitResult* p = entityBox.clip(from, to);
+            if (p != nullptr) {
+                double dd = from.distanceTo(p->pos);
+                if (dd < nearest) {
+                    hovered = e;
+                    nearest = dd;
+                }
+                delete p;
+            }
+        }
+    }
+
+    if (hovered != nullptr) {
+        target.kind = BotTarget::ENTITY;
+        target.entity = hovered;
+        target.distance = nearest;
+        delete tileHit;
+        return target;
+    }
+
+    if (tileHit != nullptr) {
+        target.kind = BotTarget::TILE;
+        target.x = tileHit->x;
+        target.y = tileHit->y;
+        target.z = tileHit->z;
+        target.face = tileHit->f;
+        // Coordenadas do clique dentro da face, no mesmo formato que
+        // Item::useOn espera (0..1 relativo à célula atingida).
+        target.clickX = static_cast<float>(tileHit->pos.x - tileHit->x);
+        target.clickY = static_cast<float>(tileHit->pos.y - tileHit->y);
+        target.clickZ = static_cast<float>(tileHit->pos.z - tileHit->z);
+        target.distance = tileDist;
+        delete tileHit;
+    }
+    return target;
+}
+
+// --- Cliques ------------------------------------------------------------
+
+bool BotPlayer::attackTarget() {
+    BotTarget target = pickTarget();
+
+    if (target.kind == BotTarget::ENTITY) {
+        if (!isAllowedToHurtEntity(target.entity)) return false;
+        attack(target.entity);
+        return true;
+    }
+    if (target.kind == BotTarget::TILE) {
+        return destroyTileAt(target.x, target.y, target.z);
+    }
+    return false;
+}
+
+bool BotPlayer::useTarget() {
+    if (level == nullptr) return false;
+
+    BotTarget target = pickTarget();
+    std::shared_ptr<Player> self = selfAsPlayer();
+    if (self == nullptr) return false;
+
+    // 1) Entidade sob a mira: Player::interact — montar cavalo/porco, tosquiar
+    //    ovelha, domesticar lobo, abrir inventário de baú-de-burro, trocar com
+    //    aldeão. Tudo já implementado pelo jogo.
+    if (target.kind == BotTarget::ENTITY) {
+        if (!isAllowedToInteract(target.entity)) return false;
+        return interact(target.entity);
+    }
+
+    // 2) Bloco sob a mira: mesma ordem de ServerPlayerGameMode::useItemOn —
+    //    primeiro Tile::use (porta, botão, alavanca, baú, fornalha, bancada,
+    //    cama...), e só se o bloco não consumir o clique é que o item age
+    //    (ItemInstance::useOn: colocar bloco, arar terra, acender fogo,
+    //    encher balde, plantar muda).
+    std::shared_ptr<ItemInstance> held = getSelectedItem();
+    if (target.kind == BotTarget::TILE) {
+        int t = level->getTile(target.x, target.y, target.z);
+        if (!isSneaking() || held == nullptr) {
+            if (t > 0 && Tile::tiles[t] != nullptr &&
+                isAllowedToUse(Tile::tiles[t])) {
+                if (Tile::tiles[t]->use(level, target.x, target.y, target.z,
+                                        self, target.face, target.clickX,
+                                        target.clickY, target.clickZ)) {
+                    return true;
+                }
+            }
+        }
+
+        if (held == nullptr || !isAllowedToUse(held)) return false;
+        bool used =
+            held->useOn(self, level, target.x, target.y, target.z, target.face,
+                        target.clickX, target.clickY, target.clickZ);
+        if (held->count == 0) removeSelectedItem();
+        return used;
+    }
+
+    // 3) Nada sob a mira: uso "no ar" — comer, beber poção, puxar arco,
+    //    lançar bola de neve/ovo, jogar vara de pescar. Mesma sequência de
+    //    ServerPlayerGameMode::useItem: o item devolve a instância resultante,
+    //    que volta para o slot selecionado.
+    if (held == nullptr || !isAllowedToUse(held)) return false;
+
+    int oldCount = held->count;
+    int oldAux = held->getAuxValue();
+    std::shared_ptr<ItemInstance> result = held->use(level, self);
+    bool changed =
+        result != held ||
+        (result != nullptr &&
+         (result->count != oldCount || result->getUseDuration() > 0 ||
+          result->getAuxValue() != oldAux));
+    if (!changed) return false;
+
+    inventory->items[inventory->selected] = result;
+    if (result != nullptr && result->count == 0) {
+        inventory->items[inventory->selected] = nullptr;
+    }
+    inventory->setChanged();
     return true;
 }
 
-int BotPlayer::getBlockIdInFront() {
-    int bx, by, bz;
-    if (!getBlockInFrontPos(bx, by, bz)) return -1;
-    if (level == nullptr) return -1;
-    return level->getTile(bx, by, bz);
+bool BotPlayer::destroyTileAt(int x, int y, int z) {
+    if (level == nullptr) return false;
+    if (!isAllowedToMine()) return false;
+    if (!mayDestroyBlockAt(x, y, z)) return false;
+
+    int t = level->getTile(x, y, z);
+    if (t <= 0) return false;  // ar, ou id inválido — nada a quebrar
+    Tile* oldTile = Tile::tiles[t];
+    if (oldTile == nullptr) return false;
+
+    int data = level->getData(x, y, z);
+    std::shared_ptr<Player> self = selfAsPlayer();
+
+    // Sequência de ServerPlayerGameMode::destroyBlock no ramo de
+    // sobrevivência (superDestroyBlock + desgaste de ferramenta + drops).
+    oldTile->playerWillDestroy(level, x, y, z, data, self);
+    bool changed = level->removeTile(x, y, z);
+    if (changed) oldTile->destroy(level, x, y, z, data);
+
+    std::shared_ptr<ItemInstance> item = getSelectedItem();
+    bool canDrop = canDestroy(oldTile);
+    if (item != nullptr) {
+        item->mineBlock(level, t, x, y, z, self);
+        if (item->count == 0) removeSelectedItem();
+    }
+    if (changed && canDrop) {
+        oldTile->playerDestroy(level, self, x, y, z, data);
+    }
+    return changed;
 }
 
+// --- Atalhos de compatibilidade (Etapa 1) -------------------------------
+
 bool BotPlayer::breakBlockInFront() {
-    int bx, by, bz;
-    if (!getBlockInFrontPos(bx, by, bz)) return false;
-    if (level == nullptr) return false;
-
-    int tileId = level->getTile(bx, by, bz);
-    if (tileId == 0) return false;  // ar, nada a quebrar
-
-    return level->destroyTile(bx, by, bz, /*dropResources=*/true);
+    BotTarget target = pickTarget();
+    if (target.kind != BotTarget::TILE) return false;
+    return destroyTileAt(target.x, target.y, target.z);
 }
 
 bool BotPlayer::placeBlockInFront() {
-    int bx, by, bz;
-    if (!getBlockInFrontPos(bx, by, bz)) return false;
     if (level == nullptr) return false;
-
-    if (level->getTile(bx, by, bz) != 0) return false;  // célula já ocupada
-
     std::shared_ptr<ItemInstance> held = getSelectedItem();
     if (held == nullptr) return false;
 
-    int tileId = held->id;
-    if (tileId < 0 || Tile::tiles == nullptr || Tile::tiles[tileId] == nullptr) {
-        return false;  // item selecionado não representa um bloco
-    }
+    BotTarget target = pickTarget();
+    if (target.kind != BotTarget::TILE) return false;
 
-    return level->setTileAndData(bx, by, bz, tileId, 0, Tile::UPDATE_ALL);
+    std::shared_ptr<Player> self = selfAsPlayer();
+    if (self == nullptr) return false;
+    if (!isAllowedToUse(held)) return false;
+
+    // Diferente de useTarget(), aqui pulamos Tile::use de propósito: este
+    // atalho existe para "colocar bloco" determinístico, sem o risco de o
+    // clique ser consumido por um baú/porta atrás da mira.
+    bool placed =
+        held->useOn(self, level, target.x, target.y, target.z, target.face,
+                    target.clickX, target.clickY, target.clickZ);
+    if (held->count == 0) removeSelectedItem();
+    return placed;
 }
 
 bool BotPlayer::attackNearestEntity(double radius) {
-    if (level == nullptr) return false;
+    std::shared_ptr<Entity> target = getNearestEntity(radius);
+    if (target == nullptr) return false;
+    if (!isAllowedToHurtEntity(target)) return false;
+    attack(target);
+    return true;
+}
+
+// --- Inventário ---------------------------------------------------------
+
+bool BotPlayer::selectSlot(int slot) {
+    if (inventory == nullptr) return false;
+    if (slot < 0 || slot >= Inventory::getSelectionSize()) return false;
+    inventory->selected = slot;
+    return true;
+}
+
+bool BotPlayer::swapInventorySlots(int a, int b) {
+    if (inventory == nullptr) return false;
+    int size = static_cast<int>(inventory->getContainerSize());
+    if (a < 0 || b < 0 || a >= size || b >= size || a == b) return false;
+    inventory->swapSlots(a, b);
+    return true;
+}
+
+bool BotPlayer::dropSelected(bool wholeStack) {
+    if (inventory == nullptr) return false;
+    if (inventory->getSelected() == nullptr) return false;
+    return drop(wholeStack) != nullptr;
+}
+
+void BotPlayer::dropWholeInventory() {
+    if (inventory != nullptr) inventory->dropAll();
+}
+
+// --- Container ----------------------------------------------------------
+
+bool BotPlayer::hasContainerOpen() const {
+    return containerMenu != nullptr && containerMenu != inventoryMenu;
+}
+
+void BotPlayer::closeContainerMenu() {
+    if (!hasContainerOpen()) return;
+    std::shared_ptr<Player> self = selfAsPlayer();
+    if (self != nullptr) containerMenu->removed(self);
+    // Não damos delete no menu: Player::closeContainer() (o caminho vanilla)
+    // também só reaponta containerMenu para inventoryMenu. Quem construiu o
+    // menu — Tile::use, via openContainer/openFurnace/... — é quem manda no
+    // ciclo de vida dele.
+    closeContainer();
+}
+
+// --- Leitura de estado --------------------------------------------------
+
+int BotPlayer::getTileAtOffset(int dx, int dy, int dz) const {
+    if (level == nullptr) return -1;
+    int bx = static_cast<int>(std::floor(x)) + dx;
+    int by = static_cast<int>(std::floor(y)) + dy;
+    int bz = static_cast<int>(std::floor(z)) + dz;
+    return level->getTile(bx, by, bz);
+}
+
+int BotPlayer::getBlockIdInFront() {
+    BotTarget target = pickTarget();
+    if (target.kind != BotTarget::TILE) return 0;  // nada sólido na mira = ar
+    if (level == nullptr) return -1;
+    return level->getTile(target.x, target.y, target.z);
+}
+
+std::shared_ptr<Entity> BotPlayer::getNearestEntity(double radius) {
+    if (level == nullptr) return nullptr;
 
     AABB box(x - radius, y - radius, z - radius, x + radius, y + radius,
              z + radius);
-    std::shared_ptr<Entity> self =
-        std::dynamic_pointer_cast<Entity>(shared_from_this());
-
+    // Ver nota de posse em pickTarget(): o vetor devolvido é do Level.
     std::vector<std::shared_ptr<Entity>>* nearby =
-        level->getEntities(self, &box);
-    if (nearby == nullptr) return false;
+        level->getEntities(shared_from_this(), &box);
+    if (nearby == nullptr) return nullptr;
 
-    std::shared_ptr<Entity> target = nullptr;
+    std::shared_ptr<Entity> best = nullptr;
     double bestDist = radius * radius;
     for (auto& e : *nearby) {
         if (e == nullptr || e.get() == this) continue;
+        if (!e->isAlive()) continue;
         double dx = e->x - x, dy = e->y - y, dz = e->z - z;
         double dist = dx * dx + dy * dy + dz * dz;
         if (dist < bestDist) {
             bestDist = dist;
-            target = e;
+            best = e;
         }
     }
-    delete nearby;
-
-    if (target == nullptr) return false;
-    attack(target);
-    return true;
+    return best;
 }

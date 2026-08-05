@@ -54,7 +54,11 @@ Processo Python (mods/CuriousMob/ai/)
 
 ## Estado do que foi implementado
 
-### Etapa 1 (implementada nesta rodada)
+> **Situação atual: Etapas 1 a 5 implementadas.** O que falta é rodar o
+> treino de verdade (horas de jogo) e observar a Etapa 6, que por definição
+> não se implementa — se observa. Ver "O que falta" no fim desta seção.
+
+### Etapa 1 (MVP da ponte)
 - `BotPlayer`: agente no mundo, com aparência/skin padrão de player, herdando
   de `Player`/`ServerPlayer` (não de `Mob`), o que já dá acesso "de graça" a
   `Inventory`, `attack()`, `interact()`, abertura de containers etc.
@@ -78,39 +82,86 @@ Processo Python (mods/CuriousMob/ai/)
 - Esqueleto Python (`environment.py` com política aleatória, `policy.py`,
   `curiosity.py`, `memory.py` como stubs).
 
-### Não implementado ainda (próximas etapas)
-- Abrir containers/portas, uso de itens além de quebrar/colocar bloco,
-  inventário completo (crafting, drag-and-drop de slots).
-- Observações mais ricas (bioma, blocos vizinhos, entidade mais próxima,
-  horário do dia, inventário) — hoje o estado é reduzido (posição, rotação,
-  chão, vida, fome, bloco à frente).
-- Sistema de curiosidade real (contagem de visitas por região → depois RND).
-- Memória espacial (chunks visitados, blocos raros, biomas conhecidos).
-- Treinamento real (PPO via Stable-Baselines3) — hoje a política é aleatória,
-  só para validar o round-trip da ponte.
+### Paridade com o Player (o requisito adicional, agora cumprido)
 
-## Roadmap original (preservado como visão de longo prazo)
+O ponto de projeto que resolveu isto: **não existe uma ação por mecânica.**
+Os dois cliques do mouse (`attack`/`use`) são roteados pelo alvo mirado
+exatamente como o jogo roteia os do humano —
 
-### Etapa 2 — Curiosidade baseada em região nunca visitada
-Cada chunk/região visitada recebe um contador; quanto menos visitada, maior a
-recompensa. Implementado do lado Python (`curiosity.py`), usando o estado de
-posição já enviado pela ponte.
+| | alvo é entidade | alvo é bloco | nada na mira |
+|---|---|---|---|
+| `attack` | `Player::attack` | quebra o bloco (desgaste de ferramenta + drops) | — |
+| `use` | `Player::interact` | `Tile::use`, senão `ItemInstance::useOn` | `ItemInstance::use` |
 
-### Etapa 3 — Treinar PPO
-Ambiente Gymnasium formal em cima do protocolo (`protocol/messages.py`),
-treinado com Stable-Baselines3, ainda sem rede de curiosidade.
+— então abrir porta, apertar botão, abrir baú/fornalha/bancada, acender
+fogo, arar terra, encher balde, plantar muda, montar cavalo, tosquiar ovelha,
+domesticar lobo, comer, beber poção e puxar o arco **já funcionam sem código
+específico**, porque o motor implementa cada um dentro dessas primitivas.
+Qualquer mecânica que o motor ganhe no futuro vale para o agente de graça.
 
-### Etapa 4 — Random Network Distillation (RND)
-Recompensa por estados difíceis de prever, como aproximação de curiosidade
-intrínseca.
+Além disso: mira por raycast (o mesmo de `GameRenderer::pick`, entidade tem
+prioridade sobre bloco), pitch além de yaw, agachar/correr, seleção de slot
+da hotbar, troca de slots, soltar item/pilha/inventário,
+soltar/cancelar item em uso, fechar container — e as checagens do sistema de
+confiança (`isAllowedToMine`, `isAllowedToHurtEntity`, ...) preservadas, para
+o bot não ter poderes que nenhum jogador tem.
 
-### Etapa 5 — Memória de longo prazo
-Locais favoritos, áreas perigosas, caminhos conhecidos.
+Observações: posição, rotação, velocidade, água/lava, agachado, correndo,
+dormindo, usando item, vivo, vida, fome, saturação, ar, XP, hora do dia, luz,
+bioma, alvo mirado, blocos vizinhos, entidade mais próxima, inventário
+completo, container aberto e o resultado da última ação.
 
-### Etapa 6 — Objetivos emergentes
+Verificado por `tests/test_player_parity.py` em três camadas (campo existe no
+protocolo / é lido pelo C++ / o C++ usa a primitiva certa do motor). Ver
+`README.md`, seção "Paridade de mecânicas com o Player".
+
+### Etapa 2 — Curiosidade por região nunca visitada ✅
+`curiosity.CountBasedCuriosity`: recompensa `1/sqrt(N)` por visitas ao chunk,
+mais bônus pontuais por **novidade categórica** (bioma novo, tipo de bloco
+novo) — que é o que faz o agente demonstrar interesse por novidades e não só
+por coordenadas.
+
+### Etapa 3 — PPO ✅ (implementado; falta rodar o treino longo)
+`env.CuriousMobEnv` é um `gymnasium.Env` sobre a ponte, com espaço de ação
+discreto (`ACTIONS`) e observação de 22 features normalizadas
+(`curiosity.encode_state`). `train.py` treina com Stable-Baselines3 e
+persiste modelo + memória, inclusive se interrompido.
+
+Limitação honesta: o Minecraft não rebobina, então `reset()` só reconecta.
+Episódios terminam por tempo ou morte — `truncated` é o caminho normal.
+
+### Etapa 4 — Random Network Distillation ✅
+`curiosity.RNDCuriosity`: rede-alvo aleatória congelada + preditor treinado
+online, com normalização Welford do erro (a escala do erro cai ordens de
+grandeza durante o treino, e recompensa de escala variável desestabiliza o
+PPO). `CombinedCuriosity` soma com a contagem. Sem torch, `build_curiosity`
+degrada para contagem em vez de falhar.
+
+### Etapa 5 — Memória de longo prazo ✅
+`memory.Memory`, indexada por chunk: visitas, primeiro/último tick, dano
+sofrido (de onde emerge "área perigosa", sem ninguém rotular nada), bioma e
+histograma de blocos vistos. Consultas: `favourite_chunks`,
+`dangerous_chunks`, `frontier_chunks`, `is_looping`. Persistida em JSON e
+recarregada entre sessões — sem isso, todo restart faria o mundo parecer novo.
+
+### Etapa 6 — Objetivos emergentes (em aberto, por definição)
 Explorar cavernas, subir montanhas, seguir rios, visitar aldeias, colecionar
 blocos — não programados diretamente, observados como comportamento
-emergente.
+emergente. Nada a implementar: a recompensa é deliberadamente **só**
+curiosidade + sobrevivência, sem nenhum termo de tarefa (`env._reward`), e é
+essa ausência que dá espaço para a emergência. O que falta é rodar e observar.
+
+### O que falta
+
+- **Rodar o treino de verdade.** `train.py` está pronto, mas 100k passos são
+  horas de jogo ao vivo; nada disso foi executado.
+- **Crafting e drag-and-drop de slots** dentro de um container aberto. O
+  container é observável e abrir/fechar funciona, mas manipular os slots
+  exigiria replicar `AbstractContainerMenu::clicked` fora do menu.
+- **Mapa id -> nome** de blocos e itens (hoje trafegam só ids numéricos).
+- **Validação em runtime** das mecânicas dentro do mundo: os testes provam
+  que o caminho existe e está ligado, não que funciona com o jogo aberto.
+  Roteiro manual no `README.md`.
 
 ## Ideias futuras (preservadas do plano original)
 - múltiplos bots aprendendo juntos;

@@ -112,6 +112,8 @@ void ControlledByPlayerGoal::tick() {
             pig->getJumpControl()->jump();
         }
     }
+    delete size;  // 4J-fix: vazava um Node por tick enquanto o jogador
+                  // pilotava a montaria (porco com sela/cenoura na vara)
 
     if (!player->abilities.instabuild && speed >= maxSpeed * 0.5f &&
         mob->getRandom()->nextFloat() < 0.006f && !boosting) {

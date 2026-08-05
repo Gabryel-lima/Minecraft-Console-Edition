@@ -21,8 +21,13 @@ WeightedPressurePlateTile::WeightedPressurePlateTile(int id,
 int WeightedPressurePlateTile::getSignalStrength(Level* level, int x, int y,
                                                  int z) {
     AABB at_bb = getSensitiveAABB(x, y, z);
-    int weightOfEntities =
-        level->getEntitiesOfClass(typeid(Entity), &at_bb)->size();
+    // 4J-fix: getEntitiesOfClass() aloca o vetor com new e transfere a posse
+    // ao chamador; usar o resultado inline vazava um std::vector a cada
+    // avaliação de sinal da placa.
+    std::vector<std::shared_ptr<Entity> >* entities =
+        level->getEntitiesOfClass(typeid(Entity), &at_bb);
+    int weightOfEntities = entities != nullptr ? (int)entities->size() : 0;
+    delete entities;
     int count = std::min(weightOfEntities, maxWeight);
 
     if (count <= 0) {

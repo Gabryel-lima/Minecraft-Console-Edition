@@ -79,10 +79,12 @@ deps: ## Install the system build dependencies (Debian/Ubuntu)
 		libgles2-mesa-dev libpthread-stubs0-dev libglm-dev zlib1g-dev
 
 .PHONY: venv
-venv: ## Create the local Python venv and install Meson
+venv: ## Create the local Python venv, install Meson and AI dependencies training dependencies
 	python3 -m venv "$(VENV_DIR)"
 	"$(VENV_DIR)/bin/python" -m pip install --upgrade pip setuptools wheel
 	"$(VENV_DIR)/bin/python" -m pip install -r requirements.txt
+	"$(VENV_DIR)/bin/python" -m pip install -r mods/CuriousMob/ai/requirements.txt
+	"$(VENV_DIR)/bin/python" -m pip install -r mods/CuriousMob/ai/requirements-train.txt
 
 .PHONY: doctor
 doctor: ## Report which toolchain pieces are present

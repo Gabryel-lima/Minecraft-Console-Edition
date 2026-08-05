@@ -534,10 +534,12 @@ void C4JRender::InitialiseContext() {
 }
 
 void C4JRender::StartFrame() {
-    int w, h;
-    SDL_GetWindowSize(s_window, &w, &h);
-    s_windowWidth = w > 0 ? w : 1;
-    s_windowHeight = h > 0 ? h : 1;
+    // 4jcraft perf: o tamanho da janela já é mantido por onFramebufferResize()
+    // a partir do evento SDL_WINDOWEVENT_RESIZED, então consultar
+    // SDL_GetWindowSize() todo frame era um round-trip ao servidor de janelas
+    // (X11/Wayland) para reler um valor que já temos em cache.
+    // O glViewport continua sendo reaplicado aqui de propósito: o render de
+    // split-screen e da UI mexem no viewport durante o frame.
     glViewport(0, 0, s_windowWidth, s_windowHeight);
 }
 
@@ -554,7 +556,9 @@ void C4JRender::Present() {
                 onFramebufferResize(ev.window.data1, ev.window.data2);
         }
     }
-    glFlush();
+    // 4jcraft perf: sem glFlush() aqui — SDL_GL_SwapWindow() já implica um
+    // flush do stream de comandos. A chamada extra só forçava uma submissão
+    // antecipada, cortando a janela em que o driver pode agrupar comandos.
     SDL_GL_SwapWindow(s_window);
 }
 
