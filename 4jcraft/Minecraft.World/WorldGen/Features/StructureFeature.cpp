@@ -42,8 +42,28 @@ void StructureFeature::addFeature(Level* level, int x, int z, int xOffs,
             x, z,
             level->getLevelData()->getGenerator() == LevelType::lvl_flat)) {
         StructureStart* start = createStructureStart(x, z);
-        cachedStructures[ChunkPos::hashCode(x, z)] = start;
+        int64_t key = ChunkPos::hashCode(x, z);
+        cachedStructures[key] = start;
+        cacheInsertionOrder.push_back(key);
         saveFeature(x, z, start);
+        pruneCache();
+    }
+}
+
+void StructureFeature::pruneCache() {
+    // FIFO: descarta as entradas mais antigas primeiro. addFeature() só
+    // insere uma chave nova quando ela ainda não está no mapa, então
+    // cacheInsertionOrder nunca tem uma chave repetida à frente de uma mais
+    // nova - basta drenar do início até caber no limite.
+    while (cachedStructures.size() > kMaxCachedStructures &&
+           !cacheInsertionOrder.empty()) {
+        int64_t oldestKey = cacheInsertionOrder.front();
+        cacheInsertionOrder.pop_front();
+
+        auto it = cachedStructures.find(oldestKey);
+        if (it == cachedStructures.end()) continue;  // já removida
+        delete it->second;
+        cachedStructures.erase(it);
     }
 }
 
@@ -265,7 +285,9 @@ void StructureFeature::restoreSavedData(Level* level) {
                             StructureFeatureIO::loadStaticStart(ct, level);
                         // System.out.println("Loaded " +
                         // start.getClass().getSimpleName() + " from file");
-                        cachedStructures[ChunkPos::hashCode(cx, cz)] = start;
+                        int64_t key = ChunkPos::hashCode(cx, cz);
+                        cachedStructures[key] = start;
+                        cacheInsertionOrder.push_back(key);
                     }
                 }
             }

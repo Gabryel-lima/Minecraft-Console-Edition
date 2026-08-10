@@ -177,7 +177,21 @@ class CuriousPolicy:
             return None
 
         if target.block in INTERACTIVE_TILES:
-            return Action(use=True)
+            # Baús/alavancas/portas encostados em lava (comum em masmorras e
+            # minas) — agacha antes de interagir. Sneaking evita que o
+            # AABB do bot escorregue block afora (o jogo não deixa andar
+            # pra fora de uma borda enquanto agachado), o mesmo motivo que
+            # leva um jogador humano a fazer isso na mesma situação.
+            near_hazard = any(
+                b in DANGEROUS_LIQUIDS
+                for b in (
+                    state.blocks.north,
+                    state.blocks.south,
+                    state.blocks.east,
+                    state.blocks.west,
+                )
+            )
+            return Action(use=True, sneak=near_hazard)
 
         # Minerar só o que ainda não é rotina neste chunk, e nunca líquido
         # (quebrar água/lava não faz nada útil e pode inundar o agente).

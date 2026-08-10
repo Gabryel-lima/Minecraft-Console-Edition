@@ -85,13 +85,15 @@ def _reward(state: State, previous: Optional[State], novelty: float) -> float:
     return reward
 
 
-class CuriousMobEnv:
-    """`gymnasium.Env` sobre a ponte. Importa Gymnasium sob demanda.
+class _CuriousMobEnvImpl:
+    """Corpo real de `CuriousMobEnv`, sem herdar de `gymnasium.Env` ainda.
 
-    O import de `gymnasium` fica dentro de `__init__` de propósito: o resto
-    do pacote (`policy`, `memory`, `curiosity`, `environment`) roda com a
-    biblioteca padrão, e não queremos que um `import env` para inspecionar
-    `ACTIONS` exija a dependência inteira.
+    `CuriousMobEnv` (função-fábrica logo abaixo) importa Gymnasium sob
+    demanda e monta a subclasse na hora. O resto do pacote (`policy`,
+    `memory`, `curiosity`, `environment`) roda com a biblioteca padrão, e não
+    queremos que um `import env` para inspecionar `ACTIONS` exija a
+    dependência inteira — mas Stable-Baselines3 checa `isinstance(env,
+    gym.Env)`, então a instância final precisa herdar de verdade.
     """
 
     metadata = {"render_modes": []}
@@ -192,3 +194,22 @@ class CuriousMobEnv:
         self._previous = state
         obs = self._np.array(encode_state(state), dtype=self._np.float32)
         return obs, float(reward), terminated, truncated, info
+
+
+_env_class: Any = None
+
+
+def CuriousMobEnv(*args: Any, **kwargs: Any) -> "_CuriousMobEnvImpl":
+    """Constrói um `_CuriousMobEnvImpl` que também é um `gymnasium.Env`.
+
+    Precisa ser uma função (não uma classe fixa) porque a herança de
+    `gym.Env` só pode ser montada depois que Gymnasium foi importado, e esse
+    import é adiado para manter `env.py` importável sem a dependência (ver
+    `_CuriousMobEnvImpl`).
+    """
+    global _env_class
+    if _env_class is None:
+        import gymnasium as gym
+
+        _env_class = type("CuriousMobEnv", (_CuriousMobEnvImpl, gym.Env), {})
+    return _env_class(*args, **kwargs)

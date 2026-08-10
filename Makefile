@@ -142,7 +142,7 @@ wipe: ## Recreate the build dir from scratch (use when switching toolchain)
 
 # Configure on demand so `make build` works on a fresh clone.
 .PHONY: ensure-setup
-ensure-setup:
+ensure-setup: ## Configure the build dir if it doesn't exist (run automatically by build)
 	@if [ ! -f "$(BUILD_PATH)/build.ninja" ]; then \
 		printf 'No build dir at %s; configuring first.\n' '$(BUILD_PATH)'; \
 		$(MAKE) setup; \
@@ -182,7 +182,7 @@ release: ## Build an optimised release binary
 
 .PHONY: run
 run: build ## Build and launch the game
-	cd "$(CLIENT_DIR)" && ./Minecraft.Client $(ARGS)
+	cd "$(CLIENT_DIR)" && CURIOUSMOB_SPAWN=1 ./Minecraft.Client $(ARGS)
 
 .PHONY: run-only
 run-only: ## Launch the existing binary without rebuilding
@@ -195,6 +195,21 @@ run-only: ## Launch the existing binary without rebuilding
 .PHONY: gdb
 gdb: build ## Launch the game under gdb
 	cd "$(CLIENT_DIR)" && gdb --args ./Minecraft.Client $(ARGS)
+
+# --- AI (CuriousMob) ---------------------------------------------------------
+#
+# Treina o bot CuriousMob via PPO contra o jogo ao vivo. Requer o jogo já
+# rodando com `make run` (ele exporta CURIOUSMOB_SPAWN=1 e abre a ponte).
+# Requer as dependências de treino: `make venv`.
+#
+#   make train-ai                        # treino padrão, 100k passos
+#   make train-ai ARGS="--steps 10000"   # sessão curta
+#   make train-ai ARGS="--rnd"           # com curiosidade RND
+#   make train-ai ARGS="--resume 4jcraft/models/ppo_curiousmob.zip"
+#
+.PHONY: train-ai
+train-ai: ## Treina o CuriousMob com PPO (jogo precisa estar rodando)
+	"$(PYTHON)" mods/CuriousMob/ai/train.py $(ARGS)
 
 .PHONY: smoke
 smoke: build ## Boot the game for SMOKE_SECONDS and confirm it reaches the main menu
