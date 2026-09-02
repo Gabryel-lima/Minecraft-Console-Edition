@@ -61,3 +61,10 @@ automaticamente para `java` em CPUs sem AVX.
 ## 🧭 Observações
 Esta é uma implementação própria baseada no repositório do [4jcraft](https://github.com/4jcraft/4jcraft).
 Os scripts em `scripts/` usam apenas a biblioteca padrão do Python; este arquivo existe principalmente para o tooling de build baseado em Meson.
+
+## 📚 Frentes de trabalho documentadas
+
+- [`TODOS.md`](TODOS.md) — diário de depuração do bot/agente (`CuriousMob`, `BotPlayer`).
+- [`MODERNIZACAO.md`](MODERNIZACAO.md) — estudo de engenharia reversa por caixa-preta para
+  trazer, mecânica por mecânica, comportamentos do Bedrock atual para esta reconstrução da
+  Console Edition, com as regras que evitam violar direitos autorais no processo.
