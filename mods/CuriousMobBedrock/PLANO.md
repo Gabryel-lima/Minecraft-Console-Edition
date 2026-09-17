@@ -268,7 +268,172 @@ com `environment.py`/`env.py` recebendo o transporte por injeção.
 - Instalação de usuário: duplo clique no `.mcaddon`.
 - **Critério de pronto:** instalação limpa numa máquina Windows sem o repo.
 
-### Etapa 6 — Treino e observação
+### Checkpoints: salvar e carregar (requisito confirmado)
+
+"Ponto de salvamento e carregamento" tem **duas leituras**, e elas não são
+alternativas — são duas metades que só valem juntas:
+
+- **Estado do mundo** (o save do Bedrock: blocos, entidades, hora, inventários
+  dos baús). É o que permite *rebobinar o jogo*.
+- **Estado do aprendizado** (pesos do PPO, memória por chunk, RND, tabela de
+  ids). É o que permite *rebobinar o agente*.
+
+Salvar um sem o outro produz incoerência silenciosa: se o mundo volta para o
+tick 10.000 mas a `Memory` continua sabendo dos chunks visitados até o tick
+80.000, a curiosidade por contagem passa a descrever um futuro que foi
+desfeito — o agente deixa de explorar uma região que, para o mundo, nunca foi
+visitada. **Um checkpoint aqui é, por definição, atômico e composto.**
+
+E isto é um ganho concreto sobre a frente C++: o `PLANO.md` atual registra
+como limitação que "`reset()` não rebobina o mundo (o Minecraft não tem
+isso)". No BDS **tem** — com um custo, descrito abaixo.
+
+### Os dois níveis (e por que dois, não um)
+
+| | **Soft checkpoint** | **Hard checkpoint** |
+|---|---|---|
+| o que restaura | bot (posição, rotação, vida, fome, inventário, slot), hora do dia, clima | o mundo inteiro, byte a byte, + todo o estado do agente |
+| como | script do add-on, `teleport` + componentes + `Container.setItem` | arquivos do save do BDS |
+| custo | ~1 tick | parar o BDS, trocar a pasta do mundo, reiniciar (~10–60 s) |
+| o que **não** restaura | blocos quebrados, mobs mortos, itens dropados, baús mexidos | — |
+| uso | `reset()` de episódio, a cada episódio | rebobinar experimento, sair de estado corrompido, comparar políticas no mesmo mundo |
+
+Um nível só não resolve: restaurar o mundo a cada episódio (a cada ~2000
+passos, hoje) custaria um restart de servidor por episódio e mataria o
+throughput; e restaurar só o bot deixa o mundo acumular danos irreversíveis
+ao longo de horas (cavernas escavadas, mobs extintos na região), o que é uma
+mudança lenta de distribuição que ninguém percebe até a curva de recompensa
+ficar estranha.
+
+### Hard checkpoint: como o BDS permite isso
+
+O BDS expõe o procedimento oficial de backup a quente, pelo console do
+servidor (stdin/stdout do processo):
+
+1. `save hold` — pausa a escrita no disco;
+2. `save query` (repetir até responder) — devolve a lista de arquivos do save
+   **com o comprimento em bytes de cada um**;
+3. copiar os arquivos, **truncando cada um no comprimento informado** — este
+   detalhe não é opcional: o LevelDB pode ter apêndices posteriores ao ponto
+   consistente, e copiar o arquivo inteiro produz um save que abre e só
+   depois corrompe;
+4. `save resume` — o mais rápido possível (o hold segura escrita em memória).
+
+Restaurar **não** é a quente: parar o BDS, substituir `worlds/<mundo>/`,
+subir de novo. Daí o custo do nível "hard".
+
+Isso exige uma peça de infra nova: **`ai/bds_supervisor.py`**, que sobe o BDS
+como subprocesso, fala com o console dele por stdin/stdout, e expõe
+`hold()/query()/resume()/stop()/start()`. Sem supervisor, não há checkpoint
+de mundo — é o primeiro item da Etapa 5.5.
+
+### Anatomia de um checkpoint
+
+```
+checkpoints/run-<id>/ck-<num_timesteps>/
+  manifest.json        # a fonte de verdade — ver abaixo
+  world/               # cópia truncada do save do BDS
+  bot.json             # posição, inventário, vida, fome, slot do SimulatedPlayer
+  ppo.zip              # policy + optimizer + num_timesteps (SB3)
+  memory.json          # Memory por chunk
+  rnd.pt               # target + predictor + optimizer + Welford (mean/var/count)
+  ids.json             # tabela de interning string -> id inteiro
+```
+
+`manifest.json` carrega o que torna o load **recusável**: `run_id`, tick do
+jogo, `num_timesteps` do PPO, versão do protocolo, versão do Bedrock/BDS,
+versão do add-on, `sha256` de cada arquivo, timestamp, e as seeds de RNG.
+Regra: **carregar um checkpoint incompatível falha alto**, nunca "tenta e vê".
+Treinar horas em cima de estado incoerente é pior do que não carregar.
+
+Escrita atômica: gravar em `ck-<n>.tmp/`, só depois escrever o manifest e
+renomear o diretório (`os.replace`). Um checkpoint meio-escrito nunca pode
+existir com manifest válido. No load, conferir os hashes antes de usar.
+
+### `bot.json` existe porque o `SimulatedPlayer` provavelmente não persiste
+
+A verificar na Etapa 0: se o `SimulatedPlayer` **não** entra no save do mundo
+(hipótese mais provável — ele é uma construção de teste), então o save do BDS
+restaura tudo *menos o agente*, e o bot precisa ser re-spawnado e
+re-equipado por script a partir do `bot.json`. Se ele persistir, `bot.json`
+vira redundante para o hard e continua necessário para o soft. Os dois casos
+custam a mesma linha de código; o que não pode é descobrir isso depois de
+restaurar um checkpoint e ver o bot nascer pelado no spawn do mundo.
+
+### Defeito real encontrado na frente atual (vale para as duas)
+
+`RNDCuriosity` (`ai/curiosity.py`) **não persiste nada**: nem a rede-alvo,
+nem os pesos do preditor, nem o Welford (`_mean`/`_var`/`_count`). A
+rede-alvo é sorteada de novo a cada execução. Consequência: retomar
+`ppo_curiousmob.zip` com `--rnd` **retoma a política contra uma função de
+recompensa intrínseca diferente** — o "oráculo" arbitrário que o preditor
+imitava virou outro oráculo. A escala também recomeça (Welford zerado),
+que é exatamente o problema que a normalização Welford existe para evitar.
+
+Isso não é específico do Bedrock; é um bug da frente atual que só aparece
+em treino longo com retomada. Corrigir junto (`RNDCuriosity.save/load`) e
+anotar nos dois planos, como manda a regra de frentes cruzadas.
+
+Da mesma lista: `train.py` chama `model.learn(total_timesteps=...)` sem
+`reset_num_timesteps=False` na retomada — o contador e o cronograma de
+learning rate reiniciam do zero a cada `--resume`.
+
+### Como isso aparece no protocolo
+
+O protocolo hoje só tem `State`/`Action`. Checkpoint precisa de um canal de
+controle, e a forma barata é aproveitar a tolerância que o protocolo já tem:
+
+- `Action` ganha um campo opcional `control`
+  (`{"soft_reset": {...}} | {"snapshot_bot": true}`);
+- `State` ganha `checkpoint_ack` opcional (o que foi aplicado, em que tick).
+
+Campos desconhecidos são ignorados dos dois lados (`State.from_json` é
+tolerante por desenho), então **o 4jcraft continua funcionando sem saber que
+`control` existe**. O hard checkpoint não passa pelo protocolo: é orquestrado
+pelo `bds_supervisor.py`, fora do jogo.
+
+### Política de retenção (não é detalhe)
+
+Um mundo Bedrock explorado por horas chega facilmente a centenas de MB. Um
+hard checkpoint por episódio enche o disco em uma tarde. Padrão proposto:
+hard a cada N passos de PPO (`CheckpointCallback` do SB3 como gatilho),
+retendo os **3 mais recentes + 1 por hora + os marcados à mão**; soft não
+gera arquivo. `checkpoints/` entra no `.gitignore` — save de mundo nunca vai
+para o repo.
+
+### Determinismo: o que um checkpoint NÃO dá
+
+Restaurar estado **não** é replay determinístico. Random ticks, IA de mob,
+spawns e o RNG interno do servidor não são restaurados pelo save. Duas
+execuções a partir do mesmo checkpoint divergem em segundos. Logo:
+
+- um checkpoint dá **condições iniciais comparáveis**, não trajetória
+  reproduzível;
+- comparar duas políticas a partir do mesmo checkpoint exige **N execuções e
+  média**, não uma execução de cada — uma execução compara sorte, não política.
+
+Quem pular essa distinção vai "medir" melhoras que são ruído.
+
+### Etapa 5.5 — Checkpoints (entra entre o empacotamento e o treino)
+
+- [ ] `ai/bds_supervisor.py`: BDS como subprocesso, console por stdin/stdout,
+      `hold/query/resume/stop/start`, parse do `save query` com truncamento.
+- [ ] `ai/checkpoint.py`: escrita atômica, manifest com hashes, `save()`/`load()`,
+      retenção.
+- [ ] `RNDCuriosity.save/load` + `reset_num_timesteps=False` na retomada
+      (corrige a frente atual também).
+- [ ] `control.soft_reset` no add-on: teleporte, inventário, vida/fome, hora.
+- [ ] `CuriousMobEnv.reset(hard=...)`: soft por padrão, hard sob demanda,
+      tolerante ao servidor sumir e voltar (o transporte HTTP precisa
+      reconectar, não morrer).
+- [ ] Testes: round-trip de checkpoint (salva → carrega → estado idêntico),
+      recusa de manifest incompatível, recusa de hash quebrado, checkpoint
+      interrompido no meio não é carregável.
+- **Critério de pronto:** matar o treino no meio, recarregar o último
+  checkpoint e o agente continuar do mesmo `num_timesteps`, no mesmo mundo,
+  com a mesma memória e a mesma função de recompensa intrínseca.
+
+## Etapa 6 — Treino e observação
 Rodar PPO contra o BDS. **Vantagem real sobre a frente atual:** o limite "um
 bot por mundo" cai — N instâncias de BDS em portas diferentes = `SubprocVecEnv`
 de verdade, coisa que o 4jcraft não permite. O gargalo passa a ser CPU/RAM,
@@ -299,6 +464,8 @@ generator para qualquer varredura pesada, para não bater no watchdog.
 | `server-net` só em BDS frustra "instalar no jogo" | **certo** | médio | dito na primeira seção; Plano B como demo |
 | Latência HTTP > 1 tick degrada controle | média | médio | decimar estado (N ticks), ação latch, medir na Etapa 0 |
 | Watchdog mata o pacote em estado grande | média | baixo | `runJob`, estado enxuto (só slots ocupados, como hoje) |
+| Hard checkpoint corrompe o save (cópia sem truncar) | média | **alto** | seguir `save query` à risca; teste de round-trip na Etapa 5.5 |
+| Disco estourado por retenção de mundos | alta | médio | política de retenção + compressão + `.gitignore` |
 
 ## O que este plano deliberadamente NÃO promete
 
@@ -311,9 +478,27 @@ generator para qualquer varredura pesada, para não bater no watchdog.
   acelerado; o ganho é paralelismo de instâncias, não velocidade por instância.
 - Não promete crafting/drag-and-drop de slots — continua fora de escopo,
   pelo mesmo motivo de hoje.
+- Não promete **reprodutibilidade determinística** a partir de um checkpoint.
+  Restaura estado, não trajetória — ver "Determinismo" na seção de checkpoints.
+
+## Decisões já tomadas
+
+- **Objetivo escolhido: o agente jogando o jogo real.** Logo, o alvo é o
+  **Plano A (BDS + `@minecraft/server-net`)**. O `.mcaddon` continua sendo o
+  formato de distribuição, mas "instala no cliente da Store e treina" está
+  fora — o cliente não tem a ponte.
+- **Checkpoints são requisito, não extra** (ver Etapa 5.5), e são atômicos:
+  mundo + agente juntos ou nenhum dos dois.
 
 ## Próximo passo
 
 Executar a **Etapa 0** e preencher suas respostas aqui. Nenhuma linha de
-TypeScript antes disso: as quatro perguntas daquela etapa decidem se o plano
-é A, B ou C, e escrever código antes é apostar no A sem evidência.
+TypeScript antes disso: as quatro perguntas daquela etapa decidem se o Plano A
+sobrevive ao contato com a versão alvo, e escrever código antes é apostar sem
+evidência. À lista da Etapa 0 soma-se, por causa dos checkpoints:
+
+- [ ] O `SimulatedPlayer` persiste no save do mundo? (decide se `bot.json` é
+      necessário para o hard checkpoint ou só para o soft)
+- [ ] `save hold`/`save query`/`save resume` funcionam pelo stdin do BDS no
+      Windows, e quanto tempo leva o ciclo num mundo de ~100 MB?
+- [ ] Quanto tempo leva um restart de BDS (o piso do custo de um hard reset)?
