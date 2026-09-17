@@ -65,6 +65,9 @@ Os scripts em `scripts/` usam apenas a biblioteca padrão do Python; este arquiv
 ## 📚 Frentes de trabalho documentadas
 
 - [`TODOS.md`](TODOS.md) — diário de depuração do bot/agente (`CuriousMob`, `BotPlayer`).
+- [`mods/CuriousMobBedrock/PLANO.md`](mods/CuriousMobBedrock/PLANO.md) — plano (ainda não
+  implementado) para levar o mesmo agente ao Minecraft Bedrock atual no Windows, como
+  add-on empacotável (`.mcaddon`).
 - [`MODERNIZACAO.md`](MODERNIZACAO.md) — estudo de engenharia reversa por caixa-preta para
   trazer, mecânica por mecânica, comportamentos do Bedrock atual para esta reconstrução da
   Console Edition, com as regras que evitam violar direitos autorais no processo.

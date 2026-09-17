@@ -163,6 +163,15 @@ essa ausência que dá espaço para a emergência. O que falta é rodar e observ
   que o caminho existe e está ligado, não que funciona com o jogo aberto.
   Roteiro manual no `README.md`.
 
+## Frente irmã: Bedrock atual (Windows)
+
+`mods/CuriousMobBedrock/PLANO.md` planeja levar **este mesmo agente** para o
+Minecraft Bedrock atual, como add-on empacotável. O que se porta não é o C++
+(o Bedrock é closed-source; `BotPlayer` não tem equivalente para herdar) e sim
+o **protocolo** e todo o lado Python (`ai/`, `protocol/`), que são
+engine-agnósticos. Qualquer mudança no schema de `State`/`Action` aqui afeta
+aquele plano — anotar nos dois.
+
 ## Ideias futuras (preservadas do plano original)
 - múltiplos bots aprendendo juntos;
 - comunicação entre bots;
