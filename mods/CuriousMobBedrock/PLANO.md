@@ -5,8 +5,20 @@
 > Bedrock atual rodando no Windows**, empacotado como **add-on oficial**
 > (`.mcaddon`) instalável no jogo.
 >
+> **Este é um projeto à parte.** Ele não compila junto com o `4jcraft/`, não
+> entra no `make`, e não depende de nada deste repositório em tempo de
+> execução — o que ele *reaproveita* é o protocolo e o lado Python, copiados
+> ou instalados como pacote (ver "Decisão 1" no handoff, no fim do arquivo).
+> Este documento fica versionado aqui porque é aqui que está o histórico que
+> o justifica, mas a implementação viverá fora.
+>
 > Este documento é **plano**, não relatório: nada abaixo está implementado.
 > Cada etapa só vira "✅" com commit linkado, como em `mods/CuriousMob/PLANO.md`.
+>
+> **Ele é escrito para ser autossuficiente**: dá para colar/entregar este
+> arquivo numa conversa nova, sem este repositório aberto, e continuar do
+> ponto certo. A seção final ("Handoff") lista o que levar junto, as decisões
+> já tomadas e todas as perguntas em aberto com as opções de cada uma.
 
 ## Por que este documento existe (e o que ele NÃO é)
 
@@ -502,3 +514,170 @@ evidência. À lista da Etapa 0 soma-se, por causa dos checkpoints:
 - [ ] `save hold`/`save query`/`save resume` funcionam pelo stdin do BDS no
       Windows, e quanto tempo leva o ciclo num mundo de ~100 MB?
 - [ ] Quanto tempo leva um restart de BDS (o piso do custo de um hard reset)?
+
+---
+
+# Handoff — para continuar isto em outra conversa
+
+Esta seção existe para que o plano não dependa de nenhum histórico de chat.
+Ela tem quatro partes: o que levar junto, o que já foi decidido, as decisões
+pendentes com opções, e um prompt inicial pronto.
+
+## A. O que levar junto (contexto mínimo)
+
+Sem estes arquivos a conversa nova vai reinventar o protocolo e o lado Python,
+que é exatamente o desperdício que este plano existe para evitar:
+
+| arquivo | por quê é essencial |
+|---|---|
+| **este `PLANO.md`** | o plano inteiro + as decisões + as perguntas |
+| `mods/CuriousMob/protocol/messages.md` | **o contrato**. O add-on novo tem de falar este schema |
+| `mods/CuriousMob/protocol/messages.py` | a referência executável do schema (dataclasses `State`/`Action`) |
+| `mods/CuriousMob/ai/*.py` | o que será reaproveitado inteiro: `policy`, `curiosity`, `memory`, `env`, `train`, `environment` |
+| `mods/CuriousMob/README.md` | a tabela de paridade `attack`/`use` e o roteiro de verificação manual |
+
+Opcional, só se a conversa for discutir arquitetura de bot: os fontes C++ em
+`4jcraft/Minecraft.Client/Mods/CuriousMob/` — como **referência de desenho**,
+nunca como código a traduzir (o Bedrock é closed-source; ver a primeira seção).
+
+## B. Decisões já tomadas (não reabrir sem motivo novo)
+
+1. **Objetivo: o agente jogando o jogo real** (não uma demo instalável). Logo,
+   alvo = **Plano A: BDS + `@minecraft/server-net`**.
+2. **Checkpoints são requisito**, em dois níveis (soft/hard), atômicos entre
+   mundo e agente.
+3. **O protocolo `State`/`Action` é o contrato e não se reescreve** — ele só
+   ganha campos opcionais, porque os dois lados toleram campo desconhecido.
+4. **Nada de injeção de input/leitura de memória do cliente** (Plano D,
+   rejeitado). Só API pública de creators.
+5. **Sem termo de tarefa na recompensa.** A recompensa continua sendo só
+   curiosidade + sobrevivência: a ausência de objetivo programado é o que dá
+   espaço para o comportamento emergente da Etapa 6. Não "ajudar" o agente
+   com recompensa por minerar/construir sem antes decidir que a frente virou
+   outra coisa.
+
+## C. Decisões pendentes — com opções, recomendação e o que cada uma custa
+
+> Formato: cada item é uma pergunta que **você** responde (ou que a Etapa 0
+> responde por evidência). A recomendação é minha; o custo de errar está
+> explícito para você poder discordar com base.
+
+### Decisão 1 — Onde o projeto mora, e como o Python é compartilhado
+- **(a) Repo novo, com `protocol/` + `ai/` copiados.** Simples, independente.
+  Custo: **drift** — os dois lados divergem em silêncio e um dia o mesmo
+  `State` significa coisas diferentes.
+- **(b) Repo novo, consumindo o Python como pacote instalável** (`pip install -e`
+  apontando para este repo, ou um pacote publicado). Custo: um passo de setup
+  a mais; ganho: um schema só, e o teste de protocolo passa a ser compartilhado.
+- **(c) Subpasta deste repo.** Custo: mistura dois ciclos de vida (um projeto
+  C++/Meson e um add-on TS/npm) num `make` só.
+- **Recomendo (b).** É o único que preserva o ativo real (um protocolo, não
+  dois). Se for (a), então crie desde já um teste que compare os dois
+  `messages.py` — drift silencioso é o modo de falha mais caro aqui.
+
+### Decisão 2 — As verificações da Etapa 0 (bloqueantes, exigem máquina Windows)
+Nenhuma destas eu posso responder sem o jogo instalado; todas derrubam ou
+confirmam o Plano A:
+- [ ] Versão alvo do Bedrock + versão de `@minecraft/server` (matriz oficial).
+- [ ] `SimulatedPlayer`: spawna livremente ou só dentro de um GameTest
+      registrado? Sobrevive a `maxTicks` grande? **Tem fome?** **Persiste no
+      save do mundo?**
+- [ ] `@minecraft/server-net` no BDS Windows: `permissions.json` funciona?
+      Latência do round-trip local?
+- [ ] Watchdog: orçamento de tempo de script por tick.
+- [ ] `save hold`/`save query`/`save resume` pelo stdin do BDS: funciona?
+      Quanto dura num mundo de ~100 MB?
+- [ ] Tempo de restart do BDS (é o piso do custo de um hard reset).
+
+### Decisão 3 — Fallback se o `SimulatedPlayer` for inviável
+- **(a) GameTest hospedeiro "infinito"** com `maxTicks` enorme. Feio, funciona.
+- **(b) Entidade customizada** dirigida por script (Plano C). **Perde
+  inventário, containers e paridade com Player** — ou seja, perde o requisito
+  central da frente.
+- **(c) Abortar e ficar só na frente C++.**
+- **Recomendo (a)**, e se (a) não existir, **(c) em vez de (b)**: um agente sem
+  paridade de ações não é este projeto, é outro.
+
+### Decisão 4 — Ids: string do Bedrock vs. id numérico do protocolo
+- **(a) Tabela de interning persistida** (`ids.json`), semeada com os ids
+  legados que `policy.py` já usa (`TILE_CHEST`, `TILE_LAVA`, ...), + campos
+  `*_name` opcionais no protocolo.
+- **(b) Trocar o protocolo para strings** e adaptar o Python.
+- **(c) Hash da string.**
+- **Recomendo (a)**: mantém `policy.py` válido e de quebra resolve a limitação
+  "ids numéricos, não nomes" que a frente atual tem. **(c) está errado**: hash
+  colide e, se o id não for estável entre execuções, destrói a `Memory` (que é
+  indexada por chunk mas histograma blocos por id).
+
+### Decisão 5 — Campos que a API talvez não exponha (`saturation`, `air`, `light`, `biome`)
+- **(a) Omitir o campo** (o `State.from_json` cai no default) e documentar numa
+  tabela de cobertura.
+- **(b) Aproximar** (ex.: derivar luz do horário + céu visível).
+- **Recomendo (a) sempre, (b) nunca sem marcar no nome do campo.** Um campo
+  aproximado que se parece com o real é pior que um campo ausente: a política
+  aprende em cima de uma mentira e ninguém descobre.
+
+### Decisão 6 — `last_result` quando a API não retorna sucesso/falha
+- **(a) Inferir por diferença de estado** (o bloco sumiu? a vida da entidade
+  caiu?) e **marcar como inferido**.
+- **(b) Omitir.**
+- **Recomendo (a)**, porque `last_result` é sinal de recompensa direto; mas a
+  marcação não é decorativa: inferência tem atraso de um ciclo de estado.
+
+### Decisão 7 — Ritmo dos checkpoints e retenção
+- Soft a cada `reset()` de episódio (barato) é consenso.
+- Hard: **a cada quantos passos de PPO?** Sugestão inicial: a cada 10k passos,
+  retendo 3 recentes + 1 por hora + marcados à mão. Depende do tamanho do
+  mundo e do disco — decidir depois de medir na Etapa 0.
+
+### Decisão 8 — Onde corrigir os defeitos do RND
+Os dois defeitos achados (RND não persiste nada; `train.py` sem
+`reset_num_timesteps=False`) afetam **as duas frentes**.
+- **(a) Corrigir na frente C++ agora**, e o projeto novo já nasce com o
+  `ai/` correto.
+- **(b) Corrigir no projeto novo** e portar de volta depois.
+- **Recomendo (a)**: é pequeno, independente de tudo, e se o Python for
+  compartilhado (Decisão 1b) corrige os dois de uma vez.
+
+### Decisão 9 — Paralelismo de treino
+N instâncias de BDS em portas diferentes = `SubprocVecEnv` real (o limite "um
+bot por mundo" da frente C++ cai). Pendente: **quantas instâncias** cabem na
+máquina (cada BDS come CPU e RAM de verdade), e se os checkpoints são por
+instância ou um mundo comum clonado N vezes.
+- **Recomendo** começar com 1 e só paralelizar depois que um treino longo
+  fechar ponta a ponta. Paralelismo cedo esconde bug de protocolo em ruído.
+
+### Decisão 10 — Stack de build do add-on
+- TypeScript + esbuild (bundle único, porque o engine não resolve
+  `node_modules`) é o padrão da comunidade. Alternativas: JS puro (menos
+  ferramenta, menos segurança de tipo no protocolo), Regolith / Minecraft
+  Creator Tools (mais estrutura, mais dependência).
+- **Recomendo TypeScript + esbuild**, com os tipos do `State`/`Action` gerados
+  a partir do schema — é o que faz o compilador pegar drift de protocolo.
+
+### Decisão 11 — Distribuição
+O `.mcaddon` é instalável por qualquer um, mas **sem BDS ele não tem ponte**.
+Decidir: publicar assim mesmo (com README explícito), publicar só o
+código-fonte, ou não publicar. **Recomendo** deixar explícito no README que o
+add-on sozinho só dá o bot com "andar aleatório" — prometer mais seria
+enganar quem instalar.
+
+## D. Prompt inicial sugerido para a conversa nova
+
+> Vou construir um projeto novo e à parte: um agente de RL que joga o
+> Minecraft Bedrock atual no Windows, empacotado como add-on (`.mcaddon`).
+> Em anexo vai o plano (`PLANO.md`) e o contrato de protocolo
+> (`messages.md`/`messages.py`) mais o lado Python (`ai/`) de uma frente
+> anterior que roda contra um motor próprio em C++ — esse Python deve ser
+> reaproveitado **sem alteração**, só trocando o transporte.
+> Leia o plano inteiro antes de propor qualquer coisa. Comece pela **Etapa 0**
+> (viabilidade), que é bloqueante, e pelas **Decisões pendentes** da seção
+> Handoff — não escreva TypeScript antes de a Etapa 0 estar respondida.
+> Seja crítico com o plano: se alguma premissa dele estiver errada
+> (especialmente sobre `SimulatedPlayer`, `@minecraft/server-net` e
+> `save hold/query/resume`), diga, em vez de seguir.
+
+## E. Registro de perguntas que eu levantei e ficaram sem resposta
+
+Todas estão acima como Decisão 1–11. Nenhuma delas é bloqueante para *ler* o
+plano; as da Decisão 2 (Etapa 0) são bloqueantes para *implementar*.
