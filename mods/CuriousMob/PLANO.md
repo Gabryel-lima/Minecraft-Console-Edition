@@ -155,6 +155,20 @@ essa ausência que dá espaço para a emergência. O que falta é rodar e observ
 
 - **Rodar o treino de verdade.** `train.py` está pronto, mas 100k passos são
   horas de jogo ao vivo; nada disso foi executado.
+- **Persistência do RND (defeito, não lacuna).** `RNDCuriosity` não salva nem
+  carrega nada: a rede-alvo é sorteada de novo a cada execução, e os pesos do
+  preditor e o Welford (`_mean`/`_var`/`_count`) se perdem. Retomar
+  `ppo_curiousmob.zip` com `--rnd` retoma a política contra uma **função de
+  recompensa intrínseca diferente** da que ela treinou, com a escala zerada —
+  que é justamente o que a normalização Welford existe para evitar. Só aparece
+  em treino longo com retomada. Descoberto ao planejar os checkpoints da
+  frente Bedrock; a correção (`save`/`load` do RND) vale para as duas.
+- **`reset_num_timesteps` na retomada.** `train.py` chama
+  `model.learn(total_timesteps=...)` sem `reset_num_timesteps=False`, então o
+  contador de passos e o cronograma de learning rate recomeçam do zero a cada
+  `--resume`.
+- **Checkpoint de mundo é impossível aqui** (o motor não rebobina), mas é
+  possível no BDS — ver "Checkpoints" em `mods/CuriousMobBedrock/PLANO.md`.
 - **Crafting e drag-and-drop de slots** dentro de um container aberto. O
   container é observável e abrir/fechar funciona, mas manipular os slots
   exigiria replicar `AbstractContainerMenu::clicked` fora do menu.
@@ -162,6 +176,15 @@ essa ausência que dá espaço para a emergência. O que falta é rodar e observ
 - **Validação em runtime** das mecânicas dentro do mundo: os testes provam
   que o caminho existe e está ligado, não que funciona com o jogo aberto.
   Roteiro manual no `README.md`.
+
+## Frente irmã: Bedrock atual (Windows)
+
+`mods/CuriousMobBedrock/PLANO.md` planeja levar **este mesmo agente** para o
+Minecraft Bedrock atual, como add-on empacotável. O que se porta não é o C++
+(o Bedrock é closed-source; `BotPlayer` não tem equivalente para herdar) e sim
+o **protocolo** e todo o lado Python (`ai/`, `protocol/`), que são
+engine-agnósticos. Qualquer mudança no schema de `State`/`Action` aqui afeta
+aquele plano — anotar nos dois.
 
 ## Ideias futuras (preservadas do plano original)
 - múltiplos bots aprendendo juntos;
